@@ -12,8 +12,6 @@ Some of the interfaces may not be correct due to calling convention errors -
 in particular the flags are not processed, and if there are more than 8 input
 registers the generated code will not work.
 
-The C headers are not currently present.
-
 ## Building
 
 You require:
@@ -25,4 +23,5 @@ To build, use:
 
     make
 
-A library `liboslib.a` should be created.
+A library `liboslib.a` should be created, together with headers in the
+`include` directory.

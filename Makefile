@@ -102,9 +102,14 @@ OBJCOPY = aarch64-unknown-linux-gnu-objcopy
 SRCS = $(wildcard src/*.s)
 OBJS = ${SRCS:%.s=%.o}
 
+headers: include/os.h
+include/os.h: oslib/include/os.h create_hfiles
+	mkdir -p include
+	./create_hfiles.sh
+
 VPATH = src
 
-liboslib.a: ${OBJS}
+liboslib.a: ${OBJS} headers
 	aarch64-unknown-linux-gnu-ar -rc $@ ${OBJS}
 
 %.o: %.c
