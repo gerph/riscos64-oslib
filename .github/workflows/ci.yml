@@ -40,7 +40,7 @@ jobs:
 
       - name: Build an archive
         run: |
-          zip -9r RISCOS64-OSLib.zip liboslib.a
+          zip -9r RISCOS64-OSLib.zip liboslib.a include
 
       - name: Give the output a versioned name
         id: version
