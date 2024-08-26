@@ -1,0 +1,503 @@
+TITLE ZLib;
+
+AUTHOR "Tom Hughes, tom@compton.nu, 22 Sep 2002";
+
+NEEDS FileSwitch;
+
+TYPE
+   ZLib_DataType = .Int,
+   ZLib_FlushType = .Int,
+   ZLib_CompressionLevel = .Int,
+   ZLib_CompressionStrategy = .Int,
+   ZLib_CompressionMethod = .Int,
+   ZLib_MemoryLevel = .Int,
+   ZLib_WindowBits = .Int,
+   ZLib_ReturnCode = .Int,
+   ZLib_SeekType = .Int;
+
+TYPE
+   ZLib_StreamControlBlock =
+   .Struct
+   (  .Int: next_in,
+      .Int: avail_in,
+      .Int: total_in,
+      .Int: next_out,
+      .Int: avail_out,
+      .Int: total_out,
+      .Ref .Char: msg,
+      .Int: state "Private value for internal use",
+      .Ref .Data: zalloc,
+      .Ref .Data: zfree,
+      .Ref .Data: opaque,
+      ZLib_DataType: data_type,
+      .Int: adler,
+      .Int: reserved
+   );
+
+TYPE
+   ZLib_GZipHandle;
+
+CONST
+   ZLib_BinaryData = ZLib_DataType: 0,
+   ZLib_ASCIIData = ZLib_DataType: 1,
+   ZLib_UnknownData = ZLib_DataType: 2;
+
+CONST
+   ZLib_NoFlush = ZLib_FlushType: 0,
+   ZLib_PartialFlush = ZLib_FlushType: 1,
+   ZLib_SyncFlush = ZLib_FlushType: 2,
+   ZLib_FullFlush = ZLib_FlushType: 3,
+   ZLib_Finish = ZLib_FlushType: 4;
+
+CONST
+   ZLib_NoCompression = ZLib_CompressionLevel: 0,
+   ZLib_BestSpeed = ZLib_CompressionLevel: 1,
+   ZLib_BestCompression = ZLib_CompressionLevel: 9,
+   ZLib_DefaultCompression = ZLib_CompressionLevel: -1;
+
+CONST
+   ZLib_DefaultStrategy = ZLib_CompressionStrategy: 0,
+   ZLib_Filtered = ZLib_CompressionStrategy: 1,
+   ZLib_HuffmanOnly = ZLib_CompressionStrategy: 2;
+
+CONST
+   ZLib_Deflated = ZLib_CompressionMethod: 8;
+
+CONST
+   ZLib_OK = ZLib_ReturnCode: 0,
+   ZLib_StreamEnd = ZLib_ReturnCode: 1,
+   ZLib_NeedDict = ZLib_ReturnCode: 2,
+   ZLib_Errno = ZLib_ReturnCode: -1,
+   ZLib_StreamError = ZLib_ReturnCode: -2,
+   ZLib_DataError = ZLib_ReturnCode: -3,
+   ZLib_MemError = ZLib_ReturnCode: -4,
+   ZLib_BufError = ZLib_ReturnCode: -5,
+   ZLib_VersionError = ZLib_ReturnCode: -6;
+
+CONST
+   ZLib_SeekAbsolute = ZLib_SeekType: 0,
+   ZLib_SeekRelative = ZLib_SeekType: 1;
+
+SWI
+   ZLib_CompressReturnSizes =
+   (  NUMBER &53AC0 *, // FIXME: good description is missing
+      ENTRY
+      (  R0 # 0b1000,
+         R1 = .Int: input_size
+      ),
+      EXIt
+      (  R0 = .Int: workspace_size,
+         R1 = .Int: output_size
+   )  );
+
+SWI
+   ZLib_Compress =
+   (  NUMBER &53AC0 "Simple Squash-like compression",
+      ENTRY
+      (  R0 = .Bits: flags,
+         R1 = .Ref .Data: workspace,
+         R2 -> .Data: input,
+         R3 = .Int: input_size,
+         R4 = .Ref .Data: output,
+         R5 = .Int: output_size
+      ),
+      EXIT
+      (  R0! = .Bits: status,
+         R2 -> .Data: unused_input,
+         R3 = .Int: unused_input_size,
+         R4 = .Ref .Data: unused_output,
+         R5 = .Int: unused_output_size
+   )  );
+
+SWI
+   ZLib_DecompressReturnSizes =
+   (  NUMBER &53AC1 *, // FIXME: good description is missing
+      ENTRY
+      (  R0 # 0b1000,
+         R1 = .Int: input_size
+      ),
+      EXIt
+      (  R0 = .Int: workspace_size,
+         R1 = .Int: output_size
+   )  );
+
+SWI
+   ZLib_Decompress =
+   (  NUMBER &53AC1 "Simple Squash-like decompression",
+      ENTRY
+      (  R0 = .Bits: flags,
+         R1 = .Ref .Data: workspace,
+         R2 -> .Data: input,
+         R3 = .Int: input_size,
+         R4 = .Ref .Data: output,
+         R5 = .Int: output_size
+      ),
+      EXIT
+      (  R0! = .Bits: status,
+         R2 -> .Data: unused_input,
+         R3 = .Int: unused_input_size,
+         R4 = .Ref .Data: unused_output,
+         R5 = .Int: unused_output_size
+   )  );
+
+SWI
+   ZLib_CRC32 =
+   (  NUMBER &53AC2 "Calculate a CRC32 checksum for a given data buffer",
+      ENTRY
+      (  R0 = .Int: continuation_value,
+         R1 -> .Data: data_start,
+         R2 -> .Data: data_end
+      ),
+      EXIT
+      (  R0! = .Int: crc32
+   )  );
+
+SWI
+   ZLib_Adler32 =
+   (  NUMBER &53AC3 "Calculate a Adler32 checksum for a given data buffer",
+      ENTRY
+      (  R0 = .Int: continuation_value,
+         R1 -> .Data: data_start,
+         R2 -> .Data: data_end
+      ),
+      EXIT
+      (  R0! = .Int: crc32
+   )  );
+
+SWI
+   ZLib_Version =
+   (  NUMBER &53AC4 "Return the version of ZLib in use",
+      EXIT
+      (  R0 -> .Char: version
+   )  );
+
+SWI
+   ZLib_ZCompress =
+   (  NUMBER &53AC5 "Compress a source buffer",
+      ENTRY
+      (  R0 = .Ref .Data: output,
+         R1 = .Int: output_size,
+         R2 -> .Data: input,
+         R3 = .Int: input_size
+      ),
+      EXIT
+      (  R0! = ZLib_ReturnCode: return_code,
+         R1 = .Int: output_used
+   )  );
+
+SWI
+   ZLib_ZCompress2 =
+   (  NUMBER &53AC6 "Compress a source buffer",
+      ENTRY
+      (  R0 = .Ref .Data: output,
+         R1 = .Int: output_size,
+         R2 -> .Data: input,
+         R3 = .Int: input_size,
+         R4 = ZLib_CompressionLevel: compression_level
+      ),
+      EXIT
+      (  R0! = ZLib_ReturnCode: return_code,
+         R1 = .Int: output_used
+   )  );
+
+SWI
+   ZLib_ZUncompress =
+   (  NUMBER &53AC7 "Uncompress a source buffer",
+      ENTRY
+      (  R0 = .Ref .Data: output,
+         R1 = .Int: output_size,
+         R2 -> .Data: input,
+         R3 = .Int: input_size
+      ),
+      EXIT
+      (  R0! = ZLib_ReturnCode: return_code,
+         R1 = .Int: output_used
+   )  );
+
+SWI
+   ZLib_DeflateInit =
+   (  NUMBER &53AC8 "Initialise a stream for compression",
+      ENTRY
+      (  R0 = .Ref ZLib_StreamControlBlock: scb,
+         R1 = ZLib_CompressionLevel: compression_level,
+         R2 -> .Char: version_expected,
+         R3 = .Int: scb_size
+      ),
+      EXIT
+      (  R0! = ZLib_ReturnCode: return_code
+   )  );
+
+SWI
+   ZLib_InflateInit =
+   (  NUMBER &53AC9 "Initialise a stream for decompression",
+      ENTRY
+      (  R0 = .Ref ZLib_StreamControlBlock: scb,
+         R1 -> .Char: version_expected,
+         R2 = .Int: scb_size
+      ),
+      EXIT
+      (  R0! = ZLib_ReturnCode: return_code
+   )  );
+
+SWI
+   ZLib_DeflateInit2 =
+   (  NUMBER &53ACA "Initialise a stream for compression with control over parameters",
+      ENTRY
+      (  R0 = .Ref ZLib_StreamControlBlock: scb,
+         R1 = ZLib_CompressionLevel: compression_level,
+         R2 = ZLib_CompressionMethod: compression_method,
+         R3 = ZLib_WindowBits: window_bits,
+         R4 = ZLib_MemoryLevel: memory_level,
+         R5 = ZLib_CompressionStrategy: compression_strategy,
+         R6 -> .Char: version_expected,
+         R7 = .Int: scb_size
+      ),
+      EXIT
+      (  R0! = ZLib_ReturnCode: return_code
+   )  );
+
+SWI
+   ZLib_InflateInit2 =
+   (  NUMBER &53ACB "Initialise a stream for decompression with control over parameters",
+      ENTRY
+      (  R0 = .Ref ZLib_StreamControlBlock: scb,
+         R1 = ZLib_WindowBits: window_bits,
+         R2 -> .Char: version_expected,
+         R3 = .Int: scb_size
+      ),
+      EXIT
+      (  R0! = ZLib_ReturnCode: return_code
+   )  );
+
+SWI
+   ZLib_Deflate =
+   (  NUMBER &53ACC "Continue a stream compression",
+      ENTRY
+      (  R0 = .Ref ZLib_StreamControlBlock: scb,
+         R1 = ZLib_FlushType: flush_type
+      ),
+      EXIT
+      (  R0! = ZLib_ReturnCode: return_code
+   )  );
+
+SWI
+   ZLib_DeflateEnd =
+   (  NUMBER &53ACD "Terminate a stream compression",
+      ENTRY
+      (  R0 = .Ref ZLib_StreamControlBlock: scb
+      ),
+      EXIT
+      (  R0! = ZLib_ReturnCode: return_code
+   )  );
+
+SWI
+   ZLib_Inflate =
+   (  NUMBER &53ACE "Continue a stream decompression",
+      ENTRY
+      (  R0 = .Ref ZLib_StreamControlBlock: scb,
+         R1 = ZLib_FlushType: flush_type
+      ),
+      EXIT
+      (  R0! = ZLib_ReturnCode: return_code
+   )  );
+
+SWI
+   ZLib_InflateEnd =
+   (  NUMBER &53ACF "Terminate a stream decompression",
+      ENTRY
+      (  R0 = .Ref ZLib_StreamControlBlock: scb
+      ),
+      EXIT
+      (  R0! = ZLib_ReturnCode: return_code
+   )  );
+
+SWI
+   ZLib_DeflateSetDictionary =
+   (  NUMBER &53AD0 "Initialise a string dictionary for a stream compression",
+      ENTRY
+      (  R0 = .Ref ZLib_StreamControlBlock: scb,
+         R1 -> .Data: dictionary "pointer to a dictionary block",
+         R2 = .Int: dictionary_size "length of block in bytes"
+      ),
+      EXIT
+      (  R0! = ZLib_ReturnCode: return_code
+   )  );
+
+SWI
+   ZLib_DeflateCopy =
+   (  NUMBER &53AD1 "Copy the compression state",
+      ENTRY
+      (  R0 = .Ref ZLib_StreamControlBlock: destination,
+         R1 -> ZLib_StreamControlBlock: source
+      ),
+      EXIT
+      (  R0! = ZLib_ReturnCode: return_code
+   )  );
+
+SWI
+   ZLib_DeflateReset =
+   (  NUMBER &53AD2 "Reset the internal compression state",
+      ENTRY
+      (  R0 = .Ref ZLib_StreamControlBlock: scb
+      ),
+      EXIT
+      (  R0! = ZLib_ReturnCode: return_code
+   )  );
+
+SWI
+   ZLib_DeflateParams =
+   (  NUMBER &53AD3 "Modifies compression parameters",
+      ENTRY
+      (  R0 = .Ref ZLib_StreamControlBlock: scb,
+         R1 = ZLib_CompressionLevel: compression_level,
+         R2 = ZLib_CompressionStrategy: compression_strategy
+      ),
+      EXIT
+      (  R0! = ZLib_ReturnCode: return_code
+   )  );
+
+SWI
+   ZLib_InflateSetDictionary =
+   (  NUMBER &53AD4 "Initialise a string dictionary for a decompression stream",
+      ENTRY
+      (  R0 = .Ref ZLib_StreamControlBlock: scb,
+         R1 -> .Data: dictionary "pointer to a dictionary block",
+         R2 = .Int: dictionary_size "length of block in bytes"
+      ),
+      EXIT
+      (  R0! = ZLib_ReturnCode: return_code
+   )  );
+
+SWI
+   ZLib_InflateSync =
+   (  NUMBER &53AD5 "Re-synchronise decompression stream",
+      ENTRY
+      (  R0 = .Ref ZLib_StreamControlBlock: scb
+      ),
+      EXIT
+      (  R0! = ZLib_ReturnCode: return_code
+   )  );
+
+SWI
+   ZLib_InflateReset =
+   (  NUMBER &53AD6 "Reset the decompression stream state",
+      ENTRY
+      (  R0 = .Ref ZLib_StreamControlBlock: scb
+      ),
+      EXIT
+      (  R0! = ZLib_ReturnCode: return_code
+   )  );
+
+SWI
+   ZLib_GZOpen =
+   (  NUMBER &53AD7 "Open a GZip file for reading or writing",
+      ENTRY
+      (  R0 -> .Char: filename,
+         R1 -> .Char: mode,
+         R2 = .Bits: load_address_in,
+         R3 = .Bits: exec_address_in,
+         R4 = .Int: size_in,
+         R5 = FileSwitch_Attr: attr_in
+      ),
+      EXIT
+      (  R0! = ZLib_GZipHandle: handle,
+         R2 = .Bits: load_address_out,
+         R3 = .Bits: exec_address_out,
+         R4 = .Int: size_out,
+         R5 = FileSwitch_Attr: attr_out
+   )  );
+
+SWI
+   ZLib_GZRead =
+   (  NUMBER &53AD8 "Read data from a GZip file",
+      ENTRY
+      (  R0 = ZLib_GZipHandle: handle,
+         R1 = .Ref .Byte: data,
+         R2 = .Int: size
+      ),
+      EXIT
+      (  R0! = .Int: read
+   )  );
+
+SWI
+   ZLib_GZWrite =
+   (  NUMBER &53AD9 "Write data to a GZip file",
+      ENTRY
+      (  R0 = ZLib_GZipHandle: handle,
+         R1 -> .Byte: data,
+         R2 = .Int: size
+      ),
+      EXIT
+      (  R0! = .Int: written
+   )  );
+
+SWI
+   ZLib_GZFlush =
+   (  NUMBER &53ADA "Flush all pending data to a GZip file",
+      ENTRY
+      (  R0 = ZLib_GZipHandle: handle,
+         R1 = ZLib_FlushType: flush_type
+      ),
+      EXIT
+      (  R0! = ZLib_ReturnCode: return_code
+   )  );
+
+SWI
+   ZLib_GZClose =
+   (  NUMBER &53ADB "Close a GZip file",
+      ENTRY
+      (  R0 = ZLib_GZipHandle: handle
+      ),
+      EXIT
+      (  R0! = ZLib_ReturnCode: return_code
+   )  );
+
+SWI
+   ZLib_GZError =
+   (  NUMBER &53ADC "Return the last error message returned by a GZip operation",
+      ENTRY
+      (  R0 = ZLib_GZipHandle: handle
+      ),
+      EXIT
+      (  R0! -> .Char: message,
+         R1 = ZLib_ReturnCode: return_code
+   )  );
+
+SWI
+   ZLib_GZSeek =
+   (  NUMBER &53ADD "Move to a specific location in a GZip file",
+      ENTRY
+      (  R0 = ZLib_GZipHandle: handle,
+         R1 = .Int: position,
+         R2 = ZLib_SeekType: seek_type
+      ),
+      EXIT
+      (  R0! = .Int: new_position
+   )  );
+
+SWI
+   ZLib_GZTell =
+   (  NUMBER &53ADE "Return the current position in a GZip file",
+      ENTRY
+      (  R0 = ZLib_GZipHandle: handle
+      ),
+      EXIT
+      (  R0! = .Int: position
+   )  );
+
+SWI
+   ZLib_GZEOF =
+   (  NUMBER &53ADF "Check whether the end of file has been reached",
+      ENTRY
+      (  R0 = ZLib_GZipHandle: handle
+      ),
+      EXIT
+      (  R0! = .Bool: eof
+   )  );
+
+SWI
+   ZLib_TaskAssociate =
+   (  NUMBER &53ADF "Check whether the end of file has been reached",
+      ENTRY
+      (  R0 = .Ref ZLib_StreamControlBlock: scb
+   )  )

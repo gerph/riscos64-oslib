@@ -1,0 +1,190 @@
+{%- macro extract_swi_name(swi) -%}
+{%- if swi.name.split('_')|length > 1 -%}
+{%- set parts = swi.name.split('_') -%}
+{{ parts[0] }}_{{ parts[1] }}
+{%- else -%}
+{{ swi.name }}
+{%- endif -%}
+{%- endmacro -%}
+
+{%- macro register_definition(reg) -%}
+{%- if reg.assign == '?' -%}
+  {{ reg.reg }} corrupted
+{%- elif reg.assign == '#' -%}
+  {%- if reg.name[0] == "'" -%}
+    {{ reg.reg }} = {{ reg.name }} (constant word)
+  {%- elif reg.name|string|length > 2 and (reg.name[0] != 'R' or reg.name[1] not in '0123456789') -%}
+    {{ reg.reg }} = {{ reg.name }} (constant)
+  {%- else -%}
+    {{ reg.reg }} = {{ '&%x'|format(reg.name) }} (constant)
+  {%- endif -%}
+{%- else -%}
+  {{ reg.reg }} {{ reg.assign }} {{ reg.name }} ({{reg.dtype}})
+{%- endif -%}
+{%- endmacro %}
+
+{%- macro mov_constant(defmod, regnum, value) -%}
+{%- if value in defmod.constants -%}
+{%- set value = defmod.constants.get(value).value -%}
+{%- endif -%}
+{%- if value < 65536 or (value % 65536) == 0 -%}
+    MOV     x{{regnum}}, #{{value}}
+{%- else -%}
+    MOV     x{{regnum}}, #{{ value % 65536 }}
+    MOVK    x{{regnum}}, #{{ value // 65536 }}, LSL 16
+{%- endif -%}
+{%- endmacro -%}
+
+{%- macro register_description(reg) -%}
+{%- if reg.assign == '?' -%}
+{%- elif reg.assign == '#' -%}
+ corrupted
+{%- elif reg.assign == '#' -%}
+  {%- if reg.name[0] == "'" -%}
+    {{ reg.name }} (constant word)
+  {%- else -%}
+    {{ reg.name }} (constant word)
+  {%- endif -%}
+{%- else -%}
+  {{ reg.name }} ({{reg.dtype}})
+{%- endif -%}
+{%- endmacro -%}
+
+{%- macro asm_regvalue_for_reg(defmod, reg, inreg) -%}
+  {%- set instr = "ORR" if reg.assign == '|' else "MOV" -%}
+  {%- set extra = "x" + reg.reg[1:] + ", " if reg.assign == '|' else "" -%}
+
+  {%- if reg.assign in ('#', '|') -%}
+   {%- if reg.assign != '|' or reg.name != 0 -%}
+    {%- if instr == 'ORR' %}
+     {%- if simple_orr_constant(defmod, reg.name) %}
+    {{instr}}     {{extra}}x{{ reg.reg[1:] }}, #{{ reg.name if reg.name not in defmod.constants else defmod.constants.get(reg.name).value }}
+     {%- else %}
+    {{ mov_constant(defmod, '10', reg.name) }}
+    {{instr}}     {{extra}}x{{ reg.reg[1:] }}, x10
+     {%- endif -%}
+    {%- else -%}
+     {%- if reg.name[0] == "'" %}
+    LDR     {{extra}}x{{ reg.reg[1:] }}, {{reg.reg[1:]}}f
+     {%- else %}
+    {{ mov_constant(defmod, reg.reg[1:], reg.name) }}
+     {%- endif -%}
+    {%- endif -%}
+   {%- endif -%}
+  {%- elif reg.reg[1:]|int == inreg %}
+    // x{{inreg}} = {{ reg.name }}
+  {%- else %}
+    {{instr}}     {{extra}}x{{ reg.reg[1:] }}, x{{ inreg }}                              // {{ reg.name }}
+  {%- endif -%}
+{%- endmacro -%}
+
+{%- macro asm_const_for_reg(reg, inreg) -%}
+ {%- if reg.assign == '#' and reg.name[0] == "'" -%}
+{{reg.reg[1:]}}:
+.ascii {{ reg.name.replace("'", '"') }}
+ {%- endif -%}
+{%- endmacro -%}
+
+
+{% for defmod in defmods %}
+ {%- if defmod.inctype != 'required' -%}
+  {%- continue -%}
+ {%- endif -%}
+
+
+
+// ############## {{ defmod.name }} interfaces #################################
+{%- for name, swi in defmod.interfaces.items()|sort %}
+
+.section .text.{{swi.name|lower}}
+
+.global {{swi.name|lower}}
+
+{{swi.name|lower}}:
+
+{#- Prepare the output registers, stripping invisible elements -#}
+{%- set ns = namespace(exitregs=[]) -%}
+{%- for reg in swi.exit -%}
+ {%- if reg.name and reg.reg.startswith('R') -%}
+  {{ ns.exitregs.append(reg) or '' }}
+ {%- endif -%}
+{%- endfor -%}
+{%- set exitregs = ns.exitregs -%}
+
+
+{#- Register definition #}
+{%- if swi.entry %}
+ {%- for reg in swi.entry %}
+    // {{ '=>' if loop.first else '  ' }}  {{ register_definition(reg) }}
+ {%- endfor -%}
+{%- endif %}
+{% if swi.exit -%}
+ {%- for reg in swi.exit %}
+    // {{ '<=' if loop.first else '  ' }}  {{ register_definition(reg) }}
+ {%- endfor %}
+{%- endif %}
+
+{#- Entry sequence #}
+    STP     x29, x30, [sp, #-16]!
+
+{%- if exitregs %}
+// Prepare output registers
+{#- Prepare output registers #}
+    SUB     sp, sp, #{{ (((exitregs|length) + 1) // 2) * 16 }}
+ {%- for outreg, reg in swi.outregs().items()|sort %}
+    STR     x{{outreg}}, [sp, #{{ 8 * loop.index0}}]
+ {%- endfor %}
+{%- endif %}
+
+{%- if swi.entry %}
+// Prepare input registers
+{# SWI input registers -#}
+ {%- for inreg, regset in swi.inregs().items()|sort|reverse -%}
+  {%- for reg in regset -%}
+   {{ asm_regvalue_for_reg(defmod, reg, inreg) }}
+  {%- endfor -%}
+ {%- endfor -%}
+{%- endif %}
+
+// Call SWI
+{%- set swinumber = (swi.number + (2**17)) %}
+    {{ mov_constant(defmod, '10', swinumber) }}
+    SVC     #0                                  // {{ extract_swi_name(swi) }} ({{ '&{:x}'.format(swi.number)}})
+
+{%- if exitregs %}
+    CSEL    x12, xzr, x0, VC
+{%- else %}
+    CSEL    x0, xzr, x0, VC
+{%- endif %}
+
+// Store output registers
+{#- SWI output registers -#}
+{%- if exitregs %}
+ {%- for outreg, reg in swi.outregs().items()|sort %}
+    LDR     x10, [sp, #{{ 8 * loop.index0}}]
+    STR     x{{reg.reg[1:]}}, [x10]                           // {{reg.name}}
+ {%- endfor %}
+{%- endif %}
+
+{%- if exitregs %}
+
+// Restore stack from output registers
+    ADD     sp, sp, #{{ (((exitregs|length) + 1) // 2) * 16 }}
+{%- endif %}
+
+{%- if exitregs %}
+    MOV     x0, x12
+{%- endif %}
+    LDP     x29, x30, [sp], #16
+    RET
+
+{%- if swi.entry %}
+ {%- for inreg, regset in swi.inregs().items()|sort|reverse -%}
+  {%- for reg in regset %}
+{{ asm_const_for_reg(reg, inreg) }}
+  {%- endfor -%}
+ {%- endfor -%}
+{%- endif %}
+
+{% endfor %}
+{% endfor %}

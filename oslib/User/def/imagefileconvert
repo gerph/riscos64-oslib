@@ -1,0 +1,174 @@
+TITLE ImageFileConvert;
+AUTHOR "John Tytgat, John.Tytgat@aaug.net, 13 Dec 2010";
+
+NEEDS OS;
+
+TYPE
+   ImageFileConvertConvert_Flags = .Bits;
+CONST
+   ImageFileConvertConvertFlags_OutOptionShift   = .Int: 0,
+   ImageFileConvertConvertFlags_InOptionShift    = .Int: 8,
+   ImageFileConvertConvertFlags_InOutOptionShift = .Int: 16,
+
+   // Output type 'Sprite':
+   ImageFileConvertConvertFlagsOutSprite_Sprite = ImageFileConvert_Flags: 0x01,
+   // Output type 'JPEG':
+   ImageFileConvertConvertFlagsOutJPEG_Monochrome = ImageFileConvert_Flags: 0x01,
+   ImageFileConvertConvertFlagsOutJPEG_QualityShift = .Int: 1;
+
+TYPE
+   ImageFileConvertConvert_Type  = .Bits;
+CONST
+   ImageFileConvertConvertType_DestFileTypeShift = .Int: 0,
+   ImageFileConvertConvertType_SrcFileTypeShift  = .Int: 16,
+
+   ImageFileConvertConvertType_StartEnumeration = ImageFileConvertConvert_Type: -1 "can be used in ImageFileConvert_EnumerateConverters";
+
+SWI
+   ImageFileConvert_Convert =
+   (  NUMBER 0x56840 "To convert an image from one format to another",
+      ENTRY
+      (  R0 = ImageFileConvertConvert_Flags: flags,
+         R1 = ImageFileConvertConvert_Type: conversion_type,
+         R2 -> Void: img_in,
+         R3 = .Int: img_in_size,
+         R4 = .Ref Void: img_out,
+         R5 = .Int: img_out_size_in,
+         R6 = OS_Colour: background,
+         R7 = .Int: param0,
+         R8 = .Int: param1,
+         R9 = .Int: param2
+      ),
+      EXIT
+      (  R5 = .Int: img_out_size_out
+   )  );
+
+TYPE
+   ImageFileConvert_OpType = .Bits,
+   ImageFileConvertReadInfo_Flags = .Bits;
+CONST
+   ImageFileConvertReadInfoFlags_Palette       = ImageFileConvertReadInfo_Flags: 0x01,
+   ImageFileConvertReadInfoFlags_Colour        = ImageFileConvertReadInfo_Flags: 0x02,
+   ImageFileConvertReadInfoFlags_AlphaOrMask   = ImageFileConvertReadInfo_Flags: 0x04,
+   ImageFileConvertReadInfoFlags_InterlaceShift = .Int: 3,
+   ImageFileConvertReadInfoFlags_InterlaceMask  = .Int: 7,
+   ImageFileConvertReadInfoFlagsInterlace_No       = ImageFileConvertReadInfo_Flags: 0,
+   ImageFileConvertReadInfoFlagsInterlace_Adam7    = ImageFileConvertReadInfo_Flags: 1,
+   ImageFileConvertReadInfoFlagsInterlace_Vertical = ImageFileConvertReadInfo_Flags: 2;
+
+SWI
+   ImageFileConvert_MiscOp =
+   (  NUMBER 0x56841 "Provide miscellaneous operations to obtain information
+                      about the conversion process",
+      ENTRY
+      (  R0 = ImageFileConvertConvert_Flags: flags,
+         R1 = ImageFileConvertConvert_Type: conversion_type,
+         R2 -> Void: img_in,
+         R3 = .Int: img_in_size,
+         R4 = ImageFileConvert_OpType: operation,
+         R5 = .Int: param0_in,
+         R6 = .Int: param1_in,
+         R7 = .Int: param2_in,
+         R8 = .Int: param3_in,
+         R9 = .Int: param4_in
+      ),
+      EXIT
+      (  R0 = .Int: param0_out,
+         R1 = .Int: param1_out,
+         R2 = .Int: param2_out,
+         R3 = .Int: param3_out,
+         R4 = .Int: param4_out,
+         R5 = .Int: param5_out,
+         R6 = .Int: param6_out,
+         R7 = .Int: param7_out,
+         R8 = .Int: param8_out,
+         R9 = .Int: param9_out
+   )  ),
+
+   // Specialisation of ImageFileConvert_MiscOp:
+   ImageFileConvert_ReadInfo =
+   (  NUMBER 0x56841 "Reads information about the image which is common to
+                      most bitmap-type operations.",
+      ENTRY
+      (  R0 = ImageFileConvertConvert_Flags: flags_in,
+         R1 = ImageFileConvertConvert_Type: conversion_type,
+         R2 -> Void: img_in,
+         R3 = .Int: img_in_size,
+         R4 # 400
+      ),
+      EXIT
+      (  R0 = .Int: width "in pixels",
+         R1 = .Int: height "in pixels",
+         R2 = .Int: bps,
+         R3 = ImageFileConvertReadInfo_Flags: flags_out,
+         R4 = .Int: xdpi,
+         R5 = .Int: ydpi
+   )  );
+
+TYPE
+   ImageFileConvertRegister_Flags = .Bits,
+   ImageFileConvert_Definition =
+   .Struct
+   (  .Int: api_version,
+      .Int: flags, // type ImageFileConvert_Flags ?
+      ImageFileConvertConvert_Type: type,
+      .Ref .String: name,
+      .Int: ws_value,
+      .Asm: do_convert,
+      .Asm: do_miscop
+   );
+      
+
+SWI
+   ImageFileConvert_Register =
+   (  NUMBER 0x56843 "Register a new converter",
+      ENTRY
+      (  R0 = ImageFileConvertRegister_Flags: flags,
+         R1 -> ImageFileConvert_Definition: def
+      ),
+      EXIT
+      (  R1 = .Int: api_version
+   )  );
+
+TYPE
+   ImageFileConvertDeregister_Flags = .Bits;
+
+SWI
+   ImageFileConvert_Deregister =
+   (  NUMBER 0x56844 "Deregister a converter",
+      ENTRY
+      (  R0 = ImageFileConvertDeregister_Flags: flags,
+         R1 = ImageFileConvertConvert_Type: type,
+         R2 -> .String: name
+   )  );
+
+TYPE
+   ImageFileConvertEnumerateConverters_Flags = .Bits;
+
+SWI
+   ImageFileConvert_EnumerateConverters =
+   (  NUMBER 0x56845 "Enumerate the currently registered converters",
+      ENTRY
+      (  R0 = ImageFileConvertEnumerateConverters_Flags: flags,
+         R1 = ImageFileConvertConvert_Type: pair_in
+      ),
+      EXIT
+      (  R0 -> ImageFileConvert_Definition: def,
+         R1 = ImageFileConvertConvert_Type: pair_out
+   )  );
+
+TYPE
+   ImageFileConvertConverterInfo_Flags = .Bits;
+
+SWI
+   ImageFileConvert_ConverterInfo =
+   (  NUMBER 0x56846 "Read information on a conversion",
+      ENTRY
+      (  R0 = ImageFileConvertConverterInfo_Flags: flags,
+         R1 = ImageFileConvertConvert_Type: pair
+      ),
+      EXIT
+      (  R0 -> ImageFileConvert_Definition: def,
+         R1 -> .String: name
+   )  )
+

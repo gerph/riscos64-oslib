@@ -1,0 +1,298 @@
+TITLE ImageFileRender;
+
+AUTHOR "Tom Hughes, tom@compton.nu, 22 Nov 2002";
+
+NEEDS OS, OSSpriteOp, PDriver;
+
+TYPE
+   ImageFileRender_SequenceNumber = .Int;
+
+CONST
+   ImageFileRender_DefaultImage = ImageFileRender_SequenceNumber: 0;
+
+TYPE
+   ImageFileRender_FitBlock =
+   .Struct
+   (  .Int: width,
+      .Int: height,
+      .Int: border,
+      .Int: angle
+   );
+
+TYPE
+   ImageFileRender_TransformationData =
+   .Union
+   (
+      ImageFileRender_FitBlock: to_fit,
+      OS_Factors: scaled,
+      OS_Trfm: transformed
+   );
+
+TYPE
+   ImageFileRender_QueryType = .Int;
+
+CONST
+   ImageFileRender_BaseDetailQuery = ImageFileRender_QueryType: 0;
+
+TYPE
+   ImageFileRender_ImageFlags = .Bits;
+
+CONST
+   ImageFileRender_ImageIsSolid = ImageFileRender_ImageFlags: 0x1;
+
+TYPE
+   ImageFileRender_BaseDetails =
+   .Struct
+   (  ImageFileRender_SequenceNumber: sequence,
+      .Int: xdpi,
+      .Int: ydpi,
+      OSSpriteOp_ModeWord: colour_type,
+      ImageFileRender_ImageFlags: image_flags
+   );
+
+TYPE
+   ImageFileRender_Flags = .Bits "used in ImageFileRender_Render";
+
+CONST
+   ImageFileRender_TransformationType      = ImageFileRender_Flags: 0x7,
+   ImageFileRender_TransformationTypeShift = .Int: 0,
+   ImageFileRender_RenderToFit             = .Int: 0,
+   ImageFileRender_RenderScaled            = .Int: 1,
+   ImageFileRender_RenderTransformed       = .Int: 2,
+   ImageFileRender_ColourMappingSupplied   = ImageFileRender_Flags: 0x8,
+   ImageFileRender_IgnoreDocumentOrigin    = ImageFileRender_Flags: 0x10,
+   ImageFileRender_ReturnOSUnits           = ImageFileRender_Flags: 0x20 "only to be used in ImageFileRender_BBox",
+   ImageFileRender_Quality                 = ImageFileRender_Flags: 0x1C0,
+   ImageFileRender_QualityShift            = .Int: 6,
+   ImageFileRender_DefaultQuality          = .Int: 0,
+   ImageFileRender_LowestQuality           = .Int: 1,
+   ImageFileRender_HighestQuality          = .Int: 15;
+
+TYPE
+   ImageFileRender_RendererFlags = .Bits;
+
+CONST
+   ImageFileRender_TransformationCapabilities      = ImageFileRender_RendererFlags: 0x3,
+   ImageFileRender_TransformationCapabilitiesShift = .Int: 0,
+   ImageFileRender_NoTransformation                = .Int: 0,
+   ImageFileRender_FixedAspectRatio                = .Int: 1,
+   ImageFileRender_AnyAspectRatio                  = .Int: 2,
+   ImageFileRender_AnyTransformation               = .Int: 3,
+   ImageFileRender_SupportsColourMapping           = ImageFileRender_RendererFlags: 0x4,
+   ImageFileRender_SupportsIrregularShapes         = ImageFileRender_RendererFlags: 0x8,
+   ImageFileRender_MaximumQualityLevel             = ImageFileRender_RendererFlags: 0xF0,
+   ImageFileRender_MaximumQualityLevelShift        = .Int: 4,
+   ImageFileRender_DefaultQualityLevel             = ImageFileRender_RendererFlags: 0xF00,
+   ImageFileRender_DefaultQualityLevelShift        = .Int: 8;
+
+TYPE
+   ImageFileRender_Magic;
+
+TYPE
+   ImageFileRender_Renderer =
+   .Struct
+   (  .Int: api_version,
+      ImageFileRender_RendererFlags: flags,
+      .Bits: file_type,
+      ImageFileRender_Magic: magic,
+      .Ref .Char: name,
+      .Ref .Data: workspace,
+      .Asm: start,
+      .Asm: stop,
+      .Asm: render,
+      .Asm: bbox,
+      .Asm: declare_fonts,
+      .Asm: info
+   );
+
+TYPE
+   ImageFileRender_ImageDescriptor =
+   .Struct
+   (  .Ref .Data: data,
+      .Int: size,
+      .Ref .Data: extension_data,
+      ImageFileRender_SequenceNumber: sequence,
+      .Ref .Data: private_data
+   );
+
+TYPE
+   ImageFileRender_RenderingDescriptor =
+   .Struct
+   (  ImageFileRender_Flags: flags,
+      OS_Trfm: trfm,
+      OS_Box: bbox,
+      OSSpriteOp_ColourMapping: mapping
+   );
+
+TYPE
+   ImageFileRender_BBoxDescriptor =
+   .Struct
+   (  ImageFileRender_Flags: flags,
+      OS_Trfm: trfm,
+      OS_Box: bbox
+   );
+
+TYPE
+   ImageFileRender_DeclareFontsDescriptor =
+   .Struct
+   (  ImageFileRender_Flags: flags,
+      PDriver_FontFlags: pdriver_flags
+   );
+
+TYPE
+   ImageFileRender_InfoDescriptor =
+   .Struct
+   (  ImageFileRender_QueryType: query,
+      .Int: size,
+      .Ref .Data: data
+   );
+
+SWI
+   ImageFileRender_Render =
+   (  NUMBER 0x562C0 "Render an image file",
+      ENTRY
+      (  R0 = ImageFileRender_Flags: flags,
+         R1 = .Bits: file_type,
+         R2 -> .Data: data,
+         R3 = .Int: size,
+         R4 -> .Data: extension_data,
+         R5 = ImageFileRender_SequenceNumber: sequence,
+         R6 = .Int: xorigin,
+         R7 = .int: yorigin,
+         R8 -> ImageFileRender_TransformationData: transformation_data,
+         R9 -> OSSpriteOp_ColourMapping: colour_mapping
+   )  ),
+
+   ImageFileRender_BBox =
+   (  NUMBER 0x562C1 "Calculate the bounding box for a transformation operation",
+      ENTRY
+      (  R0 = ImageFileRender_Flags: flags,
+         R1 = .Bits: file_type,
+         R2 -> .Data: data,
+         R3 = .Int: size,
+         R4 -> .Data: extension_data,
+         R5 = ImageFileRender_SequenceNumber: sequence,
+         R6 -> ImageFileRender_TransformationData: transformation_data,
+         R7 = .Ref OS_Box: bbox
+   )  ),
+
+   ImageFileRender_Transform =
+   (  NUMBER 0x562C2 "Calculate the transformation matrix for an operation",
+      ENTRY
+      (  R0 = ImageFileRender_Flags: flags,
+         R1 = .Bits: file_type,
+         R2 -> .Data: data,
+         R3 = .Int: size,
+         R4 -> .Data: extension_data,
+         R5 = ImageFileRender_SequenceNumber: sequence,
+         R6 -> ImageFileRender_TransformationData: transformation_data,
+         R7 = .Ref OS_Trfm: trfm
+      ),
+      EXIT
+      (  R0 = .Int: xdpi,
+         R1 = .Int: ydpi
+   )  ),
+
+   ImageFileRender_DeclareFonts =
+   (  NUMBER 0x562C3 "Declare fonts used by an image when printing",
+      ENTRY
+      (  R0 = ImageFileRender_Flags: flags,
+         R1 = .Bits: file_type,
+         R2 -> .Data: data,
+         R3 = .Int: size,
+         R4 -> .Data: extension_data,
+         R5 = ImageFileRender_SequenceNumber: sequence,
+         R6 = PDriver_FontFlags: pdriver_flags
+   )  ),
+
+   ImageFileRender_Info =
+   (  NUMBER 0x562C4 "Return information on an image",
+      ENTRY
+      (  R0 = ImageFileRender_Flags: flags,
+         R1 = .Bits: file_type,
+         R2 -> .Data: data,
+         R3 = .Int: size,
+         R4 -> .Data: extension_data,
+         R5 = ImageFileRender_SequenceNumber: sequence,
+         R6 = ImageFileRender_QueryType: query,
+         R7 = .Ref .Data: query_data,
+         R8 = .Int: query_data_size
+      ),
+      EXIT
+      (  R8! = .Int: size_used
+   )  ),
+
+   ImageFileRender_InfoBaseDetails =
+   (  NUMBER 0x562C4,
+      ENTRY
+      (  R0 = ImageFileRender_Flags: flags,
+         R1 = .Bits: file_type,
+         R2 -> .Data: data,
+         R3 = .Int: size,
+         R4 -> .Data: extension_data,
+         R5 = ImageFileRender_SequenceNumber: sequence,
+         R6 # ImageFileRender_BaseDetailQuery "Return basic information on an image",
+         R7 = .Ref ImageFileRender_BaseDetails: base_details,
+         R8 = .Int: base_details_size
+      ),
+      EXIT
+      (  R8! = .Int: size_used
+   )  ),
+
+   ImageFileRender_RendererInfo =
+   (  NUMBER 0x562C5 "Return information about a renderer",
+      ENTRY
+      (  R0 = ImageFileRender_Flags: flags,
+         R1 = .Bits: file_type,
+         R2 = ImageFileRender_Magic: magic
+      ),
+      EXIT
+      (  R0! -> ImageFileRender_Renderer: definition,
+         R1 = .Ref .Char: name
+   )  ),
+
+   ImageFileRender_Register =
+   (  NUMBER 0x562C6 "Register a new renderer",
+      ENTRY
+      (  R0 = ImageFileRender_Flags: flags,
+         R1 -> ImageFileRender_Renderer: definition
+      ),
+      EXIT
+      (  R1! = .Int: api_version
+   )  ),
+
+   ImageFileRender_Deregister =
+   (  NUMBER 0x562C7 "Deregister a renderer",
+      ENTRY
+      (  R0 = ImageFileRender_Flags: flags,
+         R1 = .Bits: file_type,
+         R2 -> .Char: name,
+         R3 = ImageFileRender_Magic: magic
+      ),
+      EXIT
+      (  R1! = .Int: api_version
+   )  );
+
+SWI
+   // Extends OS_ServiceCall
+   Service_ImageFileRenderStarted =
+   (  NUMBER 0x30,
+      ENTRY
+      (  R0 = .Int: api_version,
+         R1 # 0x80D40 "ImageFileRender module has initialised"
+   )  ),
+
+   Service_ImageFileRenderDying =
+   (  NUMBER 0x30,
+      ENTRY
+      (  R0 = .Int: api_version,
+         R1 # 0x80D41 "ImageFileRender module is finalising"
+   )  ),
+
+   Service_ImageFileRenderRendererChanged =
+   (  NUMBER 0x30,
+      ENTRY
+      (  R0 = .Int: api_version,
+         R1 # 0x80D42 "Renderer changed",
+         R2 = .Bits: file_type
+   )  )

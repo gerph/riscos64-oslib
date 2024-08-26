@@ -1,0 +1,50 @@
+TITLE PathUtils "RISC OS 6";
+AUTHOR "John Tytgat, John.Tytgat@aaug.net, 10 Aug 2009";
+
+NEEDS OS;
+
+TYPE
+   PathUtilsEnumeratePath_Flags = .Bits;
+CONST
+   PathUtilsEnumeratePathFlags_AllPathComponents = PathUtils_EnumeratePathFlags: 0x1;
+
+TYPE
+   PathUtilsJoinPath_Flags = .Bits;
+CONST
+   PathUtilsJoinPathFlags_Append = PathUtils_JoinPathFlags: 0x1 "Set for appending, clear for prepending";
+
+TYPE
+   PathUtilsRemovePath_Flags = .Bits;
+
+SWI
+   PathUtils_EnumeratePath =
+   (  NUMBER 0x56B80 "Enumerate the components of a path variables - RISC OS 6",
+      ENTRY
+      (  R0 = PathUtilsEnumeratePath_Flags: flags,
+         R1 -> .String: path,
+         R2 = .Ref .String: output_buf,
+         R3 = .Int: output_buf_size,
+         R4 = .Int: context
+      ),
+      EXIT
+      (  R3 = .Int: spare_bytes,
+         R4 = .Int: new_context,
+         R5 = OS_VarType: var_type,
+         R6 = .Int: depth
+   )  ),
+
+   PathUtils_JoinPath =
+   (  NUMBER 0x56B81 "Add a component to a path variable - RISC OS 6",
+      ENTRY
+      (  R0 = PathUtilsJoinPath_Flags: flags,
+         R1 -> .String: path_var_name,
+         R2 -> .String: value_to_join
+   )  ),
+
+   PathUtils_RemovePath =
+   (  NUMBER 0x56B82 "Remove a component from a path variable - RISC OS 6",
+      ENTRY
+      (  R0 = PathUtilsRemovePath_Flags: flags,
+         R1 -> .String: path_var_name,
+         R2 -> .String: value_to_remove
+   )  )

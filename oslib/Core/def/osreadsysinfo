@@ -1,0 +1,286 @@
+TITLE OSReadSysInfo;
+
+NEEDS OS;
+
+TYPE OSReadSysInfo_Flags0 = .Bits;
+CONST
+   OSReadSysInfo_SpecialFunction        = OSReadSysInfo_Flags0: 0xFF,
+   OSReadSysInfo_SpecialFunctionShift   = .Int: 0,
+   OSReadSysInfo_SpecialFunctionNone    = OSReadSysInfo_Flags0:   0,
+   OSReadSysInfo_SpecialFunctionIOEB    = OSReadSysInfo_Flags0:   1,
+
+   OSReadSysInfo_IOControl              = OSReadSysInfo_Flags0: 0xFF00,
+   OSReadSysInfo_IOControlShift         = .Int: 8,
+   OSReadSysInfo_IOControlIOC           = OSReadSysInfo_Flags0:   0,
+   OSReadSysInfo_IOControlIOMD          = OSReadSysInfo_Flags0:   1,
+   OSReadSysInfo_IOControlUndefined     = OSReadSysInfo_Flags0: 255 "RISC OS 6",
+
+   OSReadSysInfo_MemoryControl          = OSReadSysInfo_Flags0: 0xFF0000,
+   OSReadSysInfo_MemoryControlShift     = .Int: 16,
+   OSReadSysInfo_MemoryControlMEMC1     = OSReadSysInfo_Flags0:   0,
+   OSReadSysInfo_MemoryControlIOMD      = OSReadSysInfo_Flags0:   1,
+   OSReadSysInfo_MemoryControlUndefined = OSReadSysInfo_Flags0: 255 "RISC OS 6",
+
+   OSReadSysInfo_VideoControl           = OSReadSysInfo_Flags0: 0xFF000000,
+   OSReadSysInfo_VideoControlShift      = .Int: 24,
+   OSReadSysInfo_VideoControlVIDC1a     = OSReadSysInfo_Flags0:   0,
+   OSReadSysInfo_VideoControlVIDC20     = OSReadSysInfo_Flags0:   1,
+   OSReadSysInfo_VideoControlUndefined  = OSReadSysInfo_Flags0: 255 "RISC OS 6";
+
+TYPE OSReadSysInfo_Flags1 = .Bits;
+CONST
+   OSReadSysInfo_IO                   = OSReadSysInfo_Flags1: 0xFF,
+   OSReadSysInfo_IOShift              = .Int: 0,
+   OSReadSysInfo_IONone               = OSReadSysInfo_Flags1: 0,
+   OSReadSysInfo_IO82C710             = OSReadSysInfo_Flags1: 1 "82C710/711, or SMC'665 or similar";
+
+TYPE OSReadSysInfo_Flags2 = .Bits;
+CONST
+   OSReadSysInfo_LCDControl           = OSReadSysInfo_Flags2: 0xFF,
+   OSReadSysInfo_LCDControlShift      = .Int: 0,
+   OSReadSysInfo_LCDControlNone       = OSReadSysInfo_Flags2: 0,
+   OSReadSysInfo_LCDControlType1      = OSReadSysInfo_Flags2: 1 "A4 controller",
+   OSReadSysInfo_LCDControlType2      = OSReadSysInfo_Flags2: 2 "'Stork' controller",
+
+   OSReadSysInfo_IOMDType             = OSReadSysInfo_Flags2: 0xFF00,
+   OSReadSysInfo_IOMDTypeShift        = .Int: 8,
+   OSReadSysInfo_IOMDTypeIOMD         = OSReadSysInfo_Flags2:   0,
+   OSReadSysInfo_IOMDTypeIOMDL        = OSReadSysInfo_Flags2:   1,
+   OSReadSysInfo_IOMDTypeNone         = OSReadSysInfo_Flags2: 255 "RISC OS 6",
+
+   OSReadSysInfo_IIC2HighSpeed        = OSReadSysInfo_Flags2: 0x01000000 "RISC OS 6",
+   OSReadSysInfo_IOClockStateAtIdle   = OSReadSysInfo_Flags2: 0x02000000 "RISC OS 6";
+
+TYPE OSReadSysInfo_Platform = .Int;
+CONST
+   OSReadSysInfo_PlatformUnknown    = OSReadSysInfo_Platform: 0,
+   OSReadSysInfo_PlatformRiscPC     = OSReadSysInfo_Platform: 1,
+   OSReadSysInfo_PlatformA7000      = OSReadSysInfo_Platform: 2,
+   OSReadSysInfo_PlatformA7000Plus  = OSReadSysInfo_Platform: 3,
+   OSReadSysInfo_PlatformPhoebe     = OSReadSysInfo_Platform: 4,
+   OSReadSysInfo_PlatformHAL        = OSReadSysInfo_Platform: 5,
+   OSReadSysInfo_PlatformVirtualRPC = OSReadSysInfo_Platform: 6,
+   OSReadSysInfo_PlatformA9         = OSReadSysInfo_Platform: 7;
+
+TYPE OSReadSysInfo_PlatformFlags = .Bits;
+CONST
+   OSReadSysInfo_PlatformSupportsPodules     = OSReadSysInfo_PlatformFlags: 0x1,
+   OSReadSysInfo_PlatformSupportsPCI         = OSReadSysInfo_PlatformFlags: 0x2,
+   OSReadSysInfo_PlatformSupportsMultiCPU    = OSReadSysInfo_PlatformFlags: 0x4,
+   OSReadSysInfo_PlatformHasSoftPowerControl = OSReadSysInfo_PlatformFlags: 0x8,
+   OSReadSysInfo_PlatformRunsOSFromRAM       = OSReadSysInfo_PlatformFlags: 0x10;
+
+TYPE OSReadSysInfo_KernelValueID = .Bits;
+CONST
+   OSReadSysInfoKernelValueID_OSPageTable          = OSReadSysInfo_KernelValueID:  0,
+   OSReadSysInfoKernelValueID_HigestOSPageTablePtr = OSReadSysInfo_KernelValueID:  1,
+   OSReadSysInfoKernelValueID_UnavailablePagesPPL  = OSReadSysInfo_KernelValueID:  2,
+   OSReadSysInfoKernelValueID_PhysMemTable         = OSReadSysInfo_KernelValueID:  3,
+   OSReadSysInfoKernelValueID_CacheCleanerFlipFlop = OSReadSysInfo_KernelValueID:  4,
+   OSReadSysInfoKernelValueID_InternalTickerChain  = OSReadSysInfo_KernelValueID:  5,
+   OSReadSysInfoKernelValueID_ROMModueChain        = OSReadSysInfo_KernelValueID:  6,
+   OSReadSysInfoKernelValueID_DAList               = OSReadSysInfo_KernelValueID:  7,
+   OSReadSysInfoKernelValueID_DASpaceNode          = OSReadSysInfo_KernelValueID:  8,
+   OSReadSysInfoKernelValueID_ModuleChain          = OSReadSysInfo_KernelValueID:  9,
+   OSReadSysInfoKernelValueID_SWIHashTableEntries  = OSReadSysInfo_KernelValueID: 10,
+   OSReadSysInfoKernelValueID_SWIHashTable         = OSReadSysInfo_KernelValueID: 11,
+   OSReadSysInfoKernelValueID_IOSystemTypeFlags    = OSReadSysInfo_KernelValueID: 12,
+   OSReadSysInfoKernelValueID_L1PageTable          = OSReadSysInfo_KernelValueID: 13 "Obsolete, see SystemDAs",
+   OSReadSysInfoKernelValueID_L2PageTable          = OSReadSysInfo_KernelValueID: 14 "Obsolete, see SystemDAs",
+   OSReadSysInfoKernelValueID_TopUNDModeStack      = OSReadSysInfo_KernelValueID: 15 "Obsolete, see SystemDAs",
+   OSReadSysInfoKernelValueID_TopSVCModeStack      = OSReadSysInfo_KernelValueID: 16 "Obsolte, see SystemDAs",
+   OSReadSysInfoKernelValueID_StartSystemHeap      = OSReadSysInfo_KernelValueID: 17,
+   OSReadSysInfoKernelValueID_KernelMsgTransBlock  = OSReadSysInfo_KernelValueID: 18,
+   OSReadSysInfoKernelValueID_ErrorSemaphore       = OSReadSysInfo_KernelValueID: 19,
+   OSReadSysInfoKernelValueID_PrettyPrintDict      = OSReadSysInfo_KernelValueID: 20 "Obsolete, see OS_PrettyPrint",
+   OSReadSysInfoKernelValueID_Timer0LatchValue     = OSReadSysInfo_KernelValueID: 21,
+   OSReadSysInfoKernelValueID_FastTickerVSpeed     = OSReadSysInfo_KernelValueID: 22,
+   OSReadSysInfoKernelValueID_VectorClaimantsTable = OSReadSysInfo_KernelValueID: 23,
+   OSReadSysInfoKernelValueID_NumVectors           = OSReadSysInfo_KernelValueID: 24,
+   OSReadSysInfoKernelValueID_TopIRQModeStack      = OSReadSysInfo_KernelValueID: 25 "Obsolte, see SystemDAs",
+   OSReadSysInfoKernelValueID_SWIDispatchTable     = OSReadSysInfo_KernelValueID: 26,
+   OSReadSysInfoKernelValueID_BranchAfterSWI       = OSReadSysInfo_KernelValueID: 27;
+
+TYPE OSReadSysInfo_ROMInformationCode = .Int;
+CONST
+   OSReadSysInfo_OSName = OSReadSysInfo_ROMInformationCode: 0
+      "OS name in form <OS name> <version> <comments>",
+   OSReadSysInfo_PartNumber = OSReadSysInfo_ROMInformationCode: 1
+      "Part number in form <part>[-<comments>]",
+   OSReadSysInfo_BuildTime = OSReadSysInfo_ROMInformationCode: 2
+      "Build time, eg Tue,18 Jan 2000.10:36:40",
+   OSReadSysInfo_DealerName = OSReadSysInfo_ROMInformationCode: 3
+      "Dealer name - this is the supplier of the ROMs",
+   OSReadSysInfo_UserName = OSReadSysInfo_ROMInformationCode: 4
+      "User name - this is the name of the owner of the ROMs",
+   OSReadSysInfo_UserAddress = OSReadSysInfo_ROMInformationCode: 5
+      "User address - this is the address of the owner of the ROMs",
+   OSReadSysInfo_OSDescription = OSReadSysInfo_ROMInformationCode: 6
+      "Printable OS description";
+
+SWI OS_ReadSysInfo =
+   (  NUMBER 0x58 "Reads system information - see individual reason codes",
+      ABSENT
+   );
+
+SWI
+   OSReadSysInfo_ScreenSize =
+   (  NUMBER 0x58,
+      ENTRY
+      (  R0 # 0 "Reads the configured screen size - deprecated in RISC OS 6"
+      ),
+      EXIT
+      (  R0! = .Int: screen_size
+   )  ),
+
+   OSReadSysInfo_Mode =
+   (  NUMBER 0x58,
+      ENTRY
+      (  R0 # 1 "Reads the configured Mode/WimpMode, MonitorType and Sync"
+      ),
+      EXIT
+      (  R0! = OS_Mode: mode,
+         R1 = .Int: monitor_type,
+         R2 = .Int: sync
+   )  ),
+
+   OSReadSysInfo_MachineId =
+   (  NUMBER 0x58,
+      ENTRY
+      (  R0 # 2 "Reads the presence of various chips and unique machine id"
+      ),
+      EXIT
+      (  R0 = OSReadSysInfo_Flags0: config0,
+         R1 = OSReadSysInfo_Flags1: config1,
+         R2 = OSReadSysInfo_Flags2: config2,
+         R3 = .Bits: id_lo,
+         R4 = .Bits: id_hi
+   )  ),
+
+   OSReadSysInfo_71XFeatures =
+   (  NUMBER 0x58,
+      ENTRY
+      (  R0 # 3 "Reads features mask for 82C710 chip family"
+      ),
+      EXIT
+      (  R0 = .Bits: features,
+         R1 = .Bits: features_extended0,
+         R2 = .Bits: features_extended1,
+         R3 = .Bits: features_extended2,
+         R4 = .Bits: features_extended3
+   )  ),
+
+   OSReadSysInfo_EthernetAddress =
+   (  NUMBER 0x58,
+      ENTRY
+      (  R0 # 4 "Reads the ethernet address - RISC OS 4+"
+      ),
+      EXIT
+      (  R0 = .Bits: address_lo,
+         R1 = .Bits: address_hi
+   )  ),
+
+   OSReadSysInfo_RawMachineId =
+   (  NUMBER 0x58,
+      ENTRY
+      (  R0 # 5 "Reads the raw unique machine id - RISC OS 4+"
+      ),
+      EXIT
+      (  R0 = .Bits: id_lo,
+         R1 = .Bits: id_hi
+   )  ),
+
+   OSReadSysInfo_KernelValue =
+   (  NUMBER 0x58,
+      ENTRY
+      (  R0 # 6 "Reads a kernel data value - RISC OS 4+",
+         R1 # 0,
+         R2 = OSReadSysInfo_KernelValueID: item
+      ),
+      EXIT
+      (  R2! = .Int: value
+   )  ),
+
+   OSReadSysInfo_KernelValues =
+   (  NUMBER 0x58,
+      ENTRY
+      (  R0 # 6 "Reads a list of kernel data values - RISC OS 4+",
+         R1 -> .Int: item_list,
+         R2 = .Ref OSReadSysInfo_KernelValueID: value_buffer
+   )  ),
+
+   OSReadSysInfoKernelValue_SVCSTK =
+   (  NUMBER 0x58,
+      ENTRY
+      (  R0 # 6,
+         R1 # 0,
+         R2 # 16 "Reads the address of the top of the SVC stack - obsolete, see SystemDAs - RISC OS 4+"
+      ),
+      EXIT
+      (  R2! = .Ref .Data: stack_top
+   )  ),
+
+   OSReadSysInfoKernelValue_SWIDispatchTable =
+   (  NUMBER 0x58,
+      ENTRY
+      (  R0 # 6,
+         R1 # 0,
+         R2 # 26 "Reads the address of the SWI dispatch table - RISC OS 5+"
+      ),
+      EXIT
+      (  R2! = .Ref .Data: dispatch_table
+   )  ),
+
+   OSReadSysInfo_LastAbortInfo =
+   (  NUMBER 0x58,
+      ENTRY
+      (  R0 # 7 "Read information for last unexpected abort (data or prefetch) - RISC OS 4+"
+      ),
+      EXIT
+      (  R1 = .Ref .Data: abort_pc,
+         R2 = .Ref .Data: abort_psr,
+         R3! = .Ref .Data: fault_address
+   )  ),
+
+   OSReadSysInfo_PlatformClass =
+   (  NUMBER 0x58,
+      ENTRY
+      (  R0 # 8 "Reads the platform class - RISC OS 4+"
+      ),
+      EXIT
+      (  R0! = OSReadSysInfo_Platform: platform_class,
+         R1 = OSReadSysInfo_PlatformFlags: flags,
+         R2 = OSReadSysInfo_PlatformFlags: valid_flags
+   )  ),
+
+   OSReadSysInfo_ROMInformation =
+   (  NUMBER 0x58,
+      ENTRY
+      (  R0 # 9 "Read information about the currently installed ROM - RISC OS 4+",
+         R1 = OSReadSysInfo_ROMInformationCode: code
+      ),
+      EXIT
+      (  R0! -> .String: information
+   )  ),
+
+   OSReadSysInfo_ReadOSVersion =
+   (  NUMBER 0x58,
+      ENTRY
+      (  R0 # 10 "Read OS version - RISC OS 6"
+      ),
+      EXIT
+      (  R0! = .Int: os_version,
+         R1 = .Int: kernel_version,
+         R2 = .Int: sysinit_version_and_type,
+         R3?
+   )  ),
+
+   OSReadSysInfo_ReadDebugInfo =
+   (  NUMBER 0x58,
+      ENTRY
+      (  R0 # 11 "Read debug information"
+      ),
+      EXIT
+      (  R0 = .Asm: write_dbg,
+         R1 = .Asm: read_dbg
+   )  )

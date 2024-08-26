@@ -1,0 +1,82 @@
+TITLE ClipboardHolder;
+AUTHOR "John Tytgat, John.Tytgat@aaug.net, 11 Aug 2009";
+
+NEEDS OS, Wimp;
+
+SWI
+   ClipboardHolder_Copy =
+   (  NUMBER 0x54040 "Copies data to the clipboard - RISC OS 6",
+      ABSENT
+   ),
+
+   ClipboardHolderCopy_FromMemory =
+   (  NUMBER 0x54040,
+      ENTRY
+      (  R0 # 0 "Copies data from memory to the clipboard - RISC OS 6",
+         R1 = .Int: filetype,
+         R2 -> .Data: src,
+         R3 = .Int: length
+   )  ),
+
+   ClipboardHolderCopy_FromFile =
+   (  NUMBER 0x54040,
+      ENTRY
+      (  R0 # 1 "Copies data from file to the clipboard - RISC OS 6",
+         R1 = .Int: filetype,
+         R2 -> .String: filename
+   )  );
+
+TYPE ClipboardHolderPaste_StatusFlags = .Bits;
+CONST
+  ClipboardHolderPasteStatus_DeliverableToMemory = ClipboardHolderPaste_StatusFlags: 0x01,
+  ClipboardHolderPasteStatus_DeliverableToFile   = ClipboardHolderPaste_StatusFlags: 0x02,
+  ClipboardHolderPasteStatus_NeedsProtocol       = ClipboardHolderPaste_StatusFlags: 0x04;
+
+SWI
+   ClipboardHolder_Paste =
+   (  NUMBER 0x54041 "Request data to 'paste' from the clipboard - RISC OS 6",
+      ABSENT
+   ),
+
+   ClipboardHolderPaste_GetState =
+   (  NUMBER 0x54041,
+      ENTRY
+      (  R0 # 8 "Get status and filetype - RISC OS 6",
+         R1 = .Int: pref_filetype
+      ),
+      EXIT
+      (  R0! = ClipboardHolderPaste_StatusFlags: status,
+         R1 = .Int: filetype
+   )  ),
+
+   ClipboardHolderPaste_ToMemory =
+   (  NUMBER 0x54041,
+      ENTRY
+      (  R0 # 0 "Request data to 'paste' from the clipboard to memory - RISC OS 6",
+         R1 = .Int: pref_filetype,
+         R2 = Wimp_W: window_handle,
+         R3 = .Int: handle
+      ),
+      EXIT
+      (  
+         R0! = ClipboardHolderPaste_StatusFlags: status,
+         R1 = .Int: filetype,
+         R2 -> .Data: src,
+         R3 = .Int: length
+   )  ),
+
+   ClipboardHolderPaste_ToFile =
+   (  NUMBER 0x54041,
+      ENTRY
+      (  R0 # 1 "Request data to 'paste' from the clipboard to file - RISC OS 6",
+         R1 = .Int: pref_filetype,
+         R2 = Wimp_W: window_handle,
+         R3 = .Int: handle
+      ),
+      EXIT
+      (  
+         R0! = ClipboardHolderPaste_StatusFlags: status,
+         R1 = .Int: filetype,
+         R2 -> .String: filename
+   )  )
+

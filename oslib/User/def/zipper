@@ -1,0 +1,293 @@
+TITLE Zipper;
+
+AUTHOR "Tom Hughes, tom@compton.nu, 22 Sep 2002";
+
+NEEDS FileSwitch;
+
+TYPE
+   Zipper_UnZipHandle,
+   Zipper_ZipHandle;
+
+TYPE
+   Zipper_OpenFlags = .Bits "Used in Zipper_UnZipOpen and Zipper_ZipOpen",
+   Zipper_CloseFlags = .Bits "Used in Zipper_UnZipClose and Zipper_ZipClose",
+   Zipper_InfoFlags = .Bits,
+   Zipper_EnumerateFlags = .Bits,
+   Zipper_UnZipFileOpenFlags = .Bits,
+   Zipper_UnZipFileCloseFlags = .Bits,
+   Zipper_UnZipFileReadFlags = .Bits,
+   Zipper_UnZipFileEOFFlags = .Bits,
+   Zipper_ZipFileOpenFlags = .Bits,
+   Zipper_ZipFileCloseFlags = .Bits,
+   Zipper_ZipFileWriteFlags = .Bits;
+
+CONST
+   ZipperOpenFlags_Append = Zipper_OpenFlags: 0x1 "Only for Zipper_ZipOpen",
+   ZipperOpenFlags_NoDiscard = Zipper_OpenFlags: 0x80000000;
+
+CONST
+   ZipperEnumerateFlags_CreatorVersionNumber = Zipper_EnumerateFlags: 0x00001,
+   ZipperEnumerateFlags_GeneralPurposeFlags  = Zipper_EnumerateFlags: 0x00002,
+   ZipperEnumerateFlags_CompressionMethod    = Zipper_EnumerateFlags: 0x00004,
+   ZipperEnumerateFlags_CompressedSize       = Zipper_EnumerateFlags: 0x00008,
+   ZipperEnumerateFlags_ExpandedSize         = Zipper_EnumerateFlags: 0x00010,
+   ZipperEnumerateFlags_InternalAttributes   = Zipper_EnumerateFlags: 0x00020,
+   ZipperEnumerateFlags_ExternalAttributes   = Zipper_EnumerateFlags: 0x00040,
+   ZipperEnumerateFlags_Timestamp            = Zipper_EnumerateFlags: 0x00080,
+   ZipperEnumerateFlags_LoadAndExecAddress   = Zipper_EnumerateFlags: 0x00100,
+   ZipperEnumerateFlags_ROExpandedSize       = Zipper_EnumerateFlags: 0x00200,
+   ZipperEnumerateFlags_ROAttributes         = Zipper_EnumerateFlags: 0x00400,
+   ZipperEnumerateFlags_ROObjectType         = Zipper_EnumerateFlags: 0x00800,
+   ZipperEnumerateFlags_ROFileType           = Zipper_EnumerateFlags: 0x01000,
+   ZipperEnumerateFlags_GBPBFilenameLen      = Zipper_EnumerateFlags: 0x02000,
+   ZipperEnumerateFlags_FilenameLen          = Zipper_EnumerateFlags: 0x04000,
+   ZipperEnumerateFlags_ExtraInfoLen         = Zipper_EnumerateFlags: 0x08000,
+   ZipperEnumerateFlags_FileCommentLen       = Zipper_EnumerateFlags: 0x10000;
+
+CONST
+   ZipperFileOpenFlags_ROStyleTimeSpecifier  = Zipper_ZipFileOpenFlags: 0x01,
+   ZipperFileOpenFlags_ObjIsDir              = Zipper_ZipFileOpenFlags: 0x02,
+   ZipperFileOpenFlags_ObjIsText             = Zipper_ZipFileOpenFlags: 0x04,
+   ZipperFileOpenFlags_ExtraField            = Zipper_ZipFileOpenFlags: 0x08,
+   ZipperFileOpenFlags_CommentField          = Zipper_ZipFileOpenFlags: 0x10,
+   ZipperFileOpenFlags_FileAttributes        = Zipper_ZipFileOpenFlags: 0x20;
+
+TYPE
+   Zipper_CompressionDetails = .Bits;
+
+CONST
+   Zipper_CompressionMethod      = Zipper_CompressionDetails: 0xff,
+   Zipper_CompressionMethodShift = .Int: 0,
+   Zipper_CompressionLevel       = Zipper_CompressionDetails: 0xf00,
+   Zipper_CompressionLevelShift  = .Int: 8;
+
+CONST
+   Zipper_CompressionMethodStore   = Zipper_CompressionDetails: 0,
+   Zipper_CompressionMethodDeflate = Zipper_CompressionDetails: 8;
+
+CONST
+   Zipper_CompressionLevelMinimum = Zipper_CompressionDetails: 1,
+   Zipper_CompressionLevelMaximum = Zipper_CompressionDetails: 9;
+
+TYPE
+   Zipper_TimeSpecifier =
+   .Union
+   (  .Struct
+      (  .Bits: load_addr,
+         .Bits: exec_addr,
+         FileSwitch_Attr: attr
+      ): riscos_style,
+      .Struct
+      (  .Int: centiseconds,
+         .Int: seconds,
+         .Int: minutes,
+         .Int: hours,
+         .Int: date,
+         .Int: month,
+         .Int: year
+      ): zip_style
+   );
+
+TYPE
+   Zipper_FileAttributes =
+   .Struct
+   (  .Bits: internal,
+      .Bits: external
+   );
+
+SWI
+   Zipper_UnZipOpen =
+   (  NUMBER &559C0 "Open an archive for extraction",
+      ENTRY
+      (  R0 = Zipper_OpenFlags: flags,
+         R1 -> .Char: filename
+      ),
+      EXIT
+      (  R0! = Zipper_UnZipHandle: handle
+   )  );
+
+SWI
+   Zipper_UnZipClose =
+   (  NUMBER &559C1 "Close a file previously opened for extraction",
+      ENTRY
+      (  R0 = Zipper_CloseFlags: flags,
+         R1 = Zipper_UnZipHandle: handle
+   )  );
+
+SWI
+   Zipper_UnZipInfo =
+   (  NUMBER &559C2 "Reads information about an open archive -
+                     see individual reason codes",
+      ABSENT
+   );
+
+SWI
+   Zipper_UnZipInfoObjectCount =
+   (  NUMBER &559C2,
+      ENTRY
+      (  R0 # 0 "Read number of objects in the archive",
+         R0 | Zipper_InfoFlags: flags,
+         R1 = Zipper_UnZipHandle: handle
+      ),
+      EXIT
+      (  R0! = .Int: objects
+   )  );
+
+SWI
+   Zipper_UnZipInfoArchiveComment =
+   (  NUMBER &559C2,
+      ENTRY
+      (  R0 # 1 "Read archive comment",
+         R0 | Zipper_InfoFlags: flags,
+         R1 = Zipper_UnZipHandle: handle,
+         R2 = .Ref .Data: buffer,
+         R3 = .Int: buffer_size
+      ),
+      EXIT
+      (  R0! = .Int: read
+   )  );
+
+SWI
+   Zipper_UnZipEnumerate =
+   (  NUMBER &559C3 "Enumerate the objects in an archive",
+      ENTRY
+      (  R0 = Zipper_EnumerateFlags: flags,
+         R1 = Zipper_UnZipHandle: handle,
+         R2 = .Ref .Data: buffer,
+         R3 = .Int: objects,
+         R4 = .Int: offset,
+         R5 = .Int: buffer_size
+      ),
+      EXIT
+      (  R3! = .Int: objects_read,
+         R4 = .Int: next_offset,
+         R5 = .Int: buffer_unused
+   )  );
+
+SWI
+   Zipper_UnZipFileInfoToBuffer =
+   (  NUMBER &559C4 "Read information on a file to a buffer, like Zipper_UnZipEnumerate",
+      ENTRY
+      (  R0 = Zipper_EnumerateFlags: flags,
+         R1 = Zipper_UnZipHandle: handle,
+         R2 -> .Char: filename,
+         R3 = .Ref .Data: data,
+         R4 = .Int: data_size
+      ),
+      EXIT
+      (  R3 = .Ref .Data: data_end,
+         R4 = .Int: data_unused
+   )  );
+
+SWI
+   Zipper_UnZipFileInfoToRegisters =
+   (  NUMBER &559C4,
+      ENTRY
+      (  R0 # 0 "Read information on a file to registers, like OS_File 5",
+         R1 = Zipper_UnZipHandle: handle,
+         R2 -> .Char: filename
+      ),
+      EXIT
+      (  R0 = FileSwitch_ObjectType: obj_type,
+         R2 = .Bits: load_address,
+         R3 = .Bits: exec_address,
+         R4 = .Int: size,
+         R5 = FileSwitch_Attr: attr
+   )  );
+
+SWI
+   Zipper_UnZipFileOpen =
+   (  NUMBER &559C5 "Open a file in an archive for input",
+      ENTRY
+      (  R0 = Zipper_UnZipFileOpenFlags: flags,
+         R1 = Zipper_UnZipHandle: handle,
+         R2 -> .Char: filename
+   )  );
+
+SWI
+   Zipper_UnZipFileClose =
+   (  NUMBER &559C6 "Close the currently opened archive file",
+      ENTRY
+      (  R0 = Zipper_UnZipFileCloseFlags: flags,
+         R1 = Zipper_UnZipHandle: handle
+   )  );
+
+SWI
+   Zipper_UnZipFileRead =
+   (  NUMBER &559C7 "Read data from the currently opened archive file",
+      ENTRY
+      (  R0 = Zipper_UnZipFileReadFlags: flags,
+         R1 = Zipper_UnZipHandle: handle,
+         R2 = .Ref .Data: data,
+         R3 = .Int: size
+      ),
+      EXIT
+      (  R0! = .Int: read
+   )  );
+
+SWI
+   Zipper_UnZipFileEOF =
+   (  NUMBER &559C8 "Check whether EOF has been reached for the currently opened archive file",
+      ENTRY
+      (  R0 = Zipper_UnZipFileEOFFlags: flags,
+         R1 = Zipper_UnZipHandle: handle
+      ),
+      EXIT
+      (  R0! = .Bool: eof
+   )  );
+
+SWI
+   Zipper_ZipOpen =
+   (  NUMBER &559D0 "Create an archive",
+      ENTRY
+      (  R0 = Zipper_OpenFlags: flags,
+         R1 -> .Char: filename
+      ),
+      EXIT
+      (  R0! = Zipper_ZipHandle: handle
+   )  );
+
+SWI
+   Zipper_ZipClose =
+   (  NUMBER &559D1 "Close a file previously opened for writing",
+      ENTRY
+      (  R0 = Zipper_CloseFlags: flags,
+         R1 = Zipper_ZipHandle: handle
+   )  );
+
+SWI
+   Zipper_ZipFileOpen =
+   (  NUMBER &559D2 "Open a file in an archive for input",
+      ENTRY
+      (  R0 = Zipper_ZipFileOpenFlags: flags,
+         R1 = Zipper_ZipHandle: handle,
+         R2 -> .Char: filename,
+         R3 = Zipper_CompressionDetails: compression_details,
+         R4 -> Zipper_TimeSpecifier: time_specifier,
+         R5 -> .Data: extra,
+         R6 = .Int: extra_size,
+         R7 -> .Char: comment,
+         R8 -> Zipper_FileAttributes: attr
+   )  );
+
+SWI
+   Zipper_ZipFileClose =
+   (  NUMBER &559D3 "Close the currently opened archive file",
+      ENTRY
+      (  R0 = Zipper_ZipFileCloseFlags: flags,
+         R1 = Zipper_ZipHandle: handle
+      ),
+      EXIT
+      (  R0 = .Int: uncompressed_size,
+         R1 = .Int: compressed_size
+   )  );
+
+SWI
+   Zipper_ZipFileWrite =
+   (  NUMBER &559D4 "Write data to the currently opened archive file",
+      ENTRY
+      (  R0 = Zipper_ZipFileWriteFlags: flags,
+         R1 = Zipper_ZipHandle: handle,
+         R2 = .Ref .Data: data,
+         R3 = .Int: size
+   )  )

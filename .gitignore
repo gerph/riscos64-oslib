@@ -1,0 +1,4 @@
+dockcross-linux-arm64
+src/*.s
+*.o
+*.a

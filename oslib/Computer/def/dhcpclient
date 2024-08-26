@@ -1,0 +1,128 @@
+TITLE DHCPClient "RISC OS 6";
+AUTHOR "John Tytgat, John.Tytgat@aaug.net, 27 Aug 2009";
+
+NEEDS OS;
+
+TYPE
+   DHCPClientControl_Reason = .Int;
+CONST
+   DHCPClientControlReason_Add    = DHCPClientControl_Reason: 0,
+   DHCPClientControlReason_Remove = DHCPClientControl_Reason: 1,
+   DHCPClientControlReason_Renew  = DHCPClientControl_Reason: 2;
+
+TYPE
+   DHCPClientState_Types = .Int;
+CONST
+   DHCPClientStateType_EndOfList      = DHCPClientState_Types: -1,
+   DHCPClientStateType_State          = DHCPClientState_Types:  0,
+   DHCPClientStateType_BoundAddress   = DHCPClientState_Types:  1,
+   DHCPClientStateType_ServerAddress  = DHCPClientState_Types:  2,
+   DHCPClientStateType_GatewayAddress = DHCPClientState_Types:  3,
+   DHCPClientStateType_LeasePeriod    = DHCPClientState_Types:  4,
+   DHCPClientStateType_T1Period       = DHCPClientState_Types:  5,
+   DHCPClientStateType_T2Period       = DHCPClientState_Types:  6,
+   DHCPClientStateType_DHCPStart      = DHCPClientState_Types:  7,
+   DHCPClientStateType_LeaseStart     = DHCPClientState_Types:  8,
+   DHCPClientStateType_LeaseEnd       = DHCPClientState_Types:  9,
+   DHCPClientStateType_T1End          = DHCPClientState_Types: 10,
+   DHCPClientStateType_T2End          = DHCPClientState_Types: 11;
+
+TYPE
+   DHCPClientState_State = .Int;
+CONST
+   DHCPClientStateState_Sleeping   = DHCPClientState_State: 0,
+   DHCPClientStateState_InitReboot = DHCPClientState_State: 0,
+   DHCPClientStateState_Init       = DHCPClientState_State: 0,
+   DHCPClientStateState_Rebooting  = DHCPClientState_State: 0,
+   DHCPClientStateState_Selecting  = DHCPClientState_State: 0,
+   DHCPClientStateState_Requesting = DHCPClientState_State: 0,
+   DHCPClientStateState_Bound      = DHCPClientState_State: 0,
+   DHCPClientStateState_Renewing   = DHCPClientState_State: 0,
+   DHCPClientStateState_Rebinding  = DHCPClientState_State: 8;
+
+SWI
+   DHCPClient_Control =
+   (  NUMBER 0x55E00 "Add or remove an interface from the DHCPClient's control",
+      ENTRY
+      (  R0 = DHCPClientControl_Reason: reason,
+         R1 -> .Char: interface_name
+   )  ),
+
+   DHCPClient_State =
+   (  NUMBER 0x55E01 "Read the current DHCP client state for an interface",
+      ENTRY
+      (  R0 -> .Char: interface_name,
+         R1 -> DHCPClientState_Types: type_list,
+         R2 -> .Data: buf,
+         R3 = .Int: buf_size
+      ),
+      EXIT
+      (  R1 -> DHCPClientState_Types: last_type,
+         R2 -> .Data: buf_end,
+         R3 = .Int: space_left
+   )  ),
+
+   DHCPClient_Enumerate =
+   (  NUMBER 0x55E02 "Enumerates the interfaces under DHCPClient control",
+      ENTRY
+      (  R0 -> .Char: interface_name,
+         R1 = .Ref .Char: buf,
+         R2 = .Int: buf_size
+      ),
+      EXIT
+      (  R0 = .Int: num_state_transitions,
+         R1 = .Ref .Char: buf_end,
+         R2 = .Int: space_left
+   )  );
+
+SWI
+   // Extends OS_ServiceCall
+   Service_InternetStatus4 =
+   (  NUMBER 0x30,
+      ENTRY
+      (  R0 # 4 "BOOTP/DHCP reply is received",
+         R1 # 0xB0,
+         R2 -> .Char: interface_name,
+         R3 -> .Data: dib, // FIXME: type?
+         R4 -> .Data: dhcp_reply,
+         R5 = .Int: dhcp_reply_size
+      ),
+      EXIT
+      (  R1! = .Bool: unclaimed
+   )  ),
+
+   Service_InternetStatus5 =
+   (  NUMBER 0x30,
+      ENTRY
+      (  R0 # 5 "DHCPClient module receives an offer of an IP address lease
+                 which is better than its current best choice (or if it is the
+                 first acceptable offer)",
+         R1 # 0xB0,
+         R2 -> .Char: interface_name,
+         R3 -> .Data: dib, // FIXME: type?
+         R4 -> .Data: dhcpoffer_buf,
+         R5 = .Int: dhcpoffer_buf_size
+      ),
+      EXIT
+      (  R1! = .Bool: unclaimed
+   )  ),
+
+   Service_InternetStatus30 =
+   (  NUMBER 0x30,
+      ENTRY
+      (  R0 # 0x30 "DHCPClient module has successfully configured an interface
+                    with an address leased from a DHCP server",
+         R1 # 0xB0,
+         R2 -> .Char: interface_name,
+         R3 = .Int: ip_address
+   )  ),
+
+   Service_InternetService31 =
+   (  NUMBER 0x30,
+      ENTRY
+      (  R0 # 0x31 "DHCPClient module has lost the DHCP server leased address
+                    allocated to an interface",
+         R1 # 0xB0,
+         R2 -> .Char: interface_name,
+         R3 = .Int: ip_address
+   )  )

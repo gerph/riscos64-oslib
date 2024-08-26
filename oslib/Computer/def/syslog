@@ -1,0 +1,248 @@
+TITLE SysLog;
+
+AUTHOR "Tom Hughes, tom@compton.nu, 22 Sep 2002";
+
+NEEDS OS;
+
+SWI
+   SysLog_LogMessage =
+   (  NUMBER &4C880 "Log a message in a named system log or session log",
+      ENTRY
+      (  R0 -> .Char: name_or_handle,
+         R1 -> .Char: message,
+         R2 = .Int: priority
+   )  );
+
+SWI
+   SysLog_LogMessageByHandle =
+   (  NUMBER &4C880 "Log a message in a session log",
+      ENTRY
+      (  R0 = .Bits: handle,
+         R1 -> .Char: message,
+         R2 = .Int: priority
+   )  );
+
+SWI
+   SysLog_GetLogLevel =
+   (  NUMBER &4C881 "Read the current logging level for a particular log",
+      ENTRY
+      (  R0 -> .Char: name_or_handle
+      ),
+      EXIT
+      (  R0! = .Int: priority
+   )  );
+
+SWI
+   SysLog_GetLogLevelByHandle =
+   (  NUMBER &4C881 "Read the current logging level for a particular session log",
+      ENTRY
+      (  R0 = .Bits: handle
+      ),
+      EXIT
+      (  R0! = .Int: priority
+   )  );
+
+SWI
+   SysLog_FlushLog =
+   (  NUMBER &4C882 "Writes any cached data from memory to the logs and
+                     closes the files",
+      ENTRY
+      (  R0 -> .Char: name_or_handle
+   )  );
+
+SWI
+   SysLog_FlushLogByHandle =
+   (  NUMBER &4C882 "Writes any cached data from memory to the logs and
+                     closes the files",
+      ENTRY
+      (  R0 = .Bits: handle
+   )  );
+
+SWI
+   SysLog_SetLogLevel =
+   (  NUMBER &4C883 "Set the current logging level for a particular log",
+      ENTRY
+      (  R0 -> .Char: name_or_handle,
+         R1 = .Int: priority
+   )  );
+
+SWI
+   SysLog_SetLogLevelByHandle =
+   (  NUMBER &4C883 "Set the current logging level for a particular log",
+      ENTRY
+      (  R0 = .Bits: handle,
+         R1 = .Int: priority
+   )  );
+
+SWI
+   SysLog_LogUnstamped =
+   (  NUMBER &4C884 "Log a message in a named system log or session log
+                     without stamping it with the time and date",
+      ENTRY
+      (  R0 -> .Char: name_or_handle,
+         R1 -> .Char: message,
+         R2 = .Int: priority
+   )  );
+
+SWI
+   SysLog_LogUnstampedByHandle =
+   (  NUMBER &4C884 "Log a message in a session log
+                     without stamping it with the time and date",
+      ENTRY
+      (  R0 = .Bits: handle,
+         R1 -> .Char: message,
+         R2 = .Int: priority
+   )  );
+
+SWI
+   SysLog_Indent =
+   (  NUMBER &4C885 "Increases the indentation for a log",
+      ENTRY
+      (  R0 -> .Char: name_or_handle
+   )  );
+
+SWI
+   SysLog_IndentByHandle =
+   (  NUMBER &4C885 "Increases the indentation for a log",
+      ENTRY
+      (  R0 = .Bits: handle
+   )  );
+
+SWI
+   SysLog_UnIndent =
+   (  NUMBER &4C886 "Decreases the indentation for a log",
+      ENTRY
+      (  R0 -> .Char: name_or_handle
+   )  );
+
+SWI
+   SysLog_UnIndentByHandle =
+   (  NUMBER &4C886 "Decreases the indentation for a log",
+      ENTRY
+      (  R0 = .Bits: handle
+   )  );
+
+SWI
+   SysLog_NoIndent =
+   (  NUMBER &4C887 "Resets the indentation for a log",
+      ENTRY
+      (  R0 -> .Char: handle
+   )  );
+
+SWI
+   SysLog_NoIndentByHandle =
+   (  NUMBER &4C887 "Resets the indentation for a log",
+      ENTRY
+      (  R0 = .Bits: handle
+   )  );
+
+SWI
+   SysLog_OpenSessionLog =
+   (  NUMBER &4C888 "Open a session log file with a particular priority
+   			- Prefer SysLog_OpenSessionLogByHandle",
+      ENTRY
+      (  R0 -> .Char: name,
+         R1 = .Int: priority
+      ),
+      EXIT
+      (  R0! -> .Char: handle
+   )  );
+
+SWI
+   SysLog_OpenSessionLogByHandle =
+   (  NUMBER &4C888 "Open a session log file with a particular priority",
+      ENTRY
+      (  R0 -> .Char: name,
+         R1 = .Int: priority
+      ),
+      EXIT
+      (  R0! = .Bits: handle
+   )  );
+
+SWI
+   SysLog_CloseSessionLog =
+   (  NUMBER &4C889 "Close a session log and append it's date to the mail log
+   			- Prefer SysLog_CloseSessionLogByHandle",
+      ENTRY
+      (  R0 -> .Char: handle
+   )  );
+
+SWI
+   SysLog_CloseSessionLogByHandle =
+   (  NUMBER &4C889 "Close a session log and append it's date to the mail log",
+      ENTRY
+      (  R0 = .Bits: handle
+   )  );
+
+SWI
+   SysLog_LogData =
+   (  NUMBER &4C88A "Log a block of data as a hex dump",
+      ENTRY
+      (  R0 -> .Char: name_or_handle,
+         R1 = .Int: priority,
+         R2 -> .Data: data,
+         R3 = .Int: data_size,
+         R4 -> .Data: base_address
+   )  );
+
+SWI
+   SysLog_LogDataByHandle =
+   (  NUMBER &4C88A "Log a block of data as a hex dump",
+      ENTRY
+      (  R0 = .Bits: handle,
+         R1 = .Int: priority,
+         R2 -> .Data: data,
+         R3 = .Int: data_size,
+         R4 -> .Data: base_address
+   )  );
+
+SWI
+   SysLog_ReadErrorMessage =
+   (  NUMBER &4C88C "Decodes the errors returned by the stack",
+      ENTRY
+      (  R0 = .Int: error_number
+      ),
+      EXIT
+      (  R0! -> .Char: error_message
+   )  );
+
+SWI
+   SysLog_LogComplete =
+   (  NUMBER &4C88D "Flushes the names log and deallocates the space set
+                     aside for it",
+      ENTRY
+      (  R0 -> .Char: name_or_handle
+   )  );
+
+SWI
+   SysLog_LogCompleteByHandle =
+   (  NUMBER &4C88D "Flushes the names log and deallocates the space set
+                     aside for it",
+      ENTRY
+      (  R0 = .Bits: handle
+   )  );
+
+SWI
+   SysLog_IRQMode =
+   (  NUMBER &4C88E *, // FIXME: good description is missing
+      ENTRY
+      (  R0 = .Bool: flag
+   )  );
+
+SWI
+   SysLog_LogCharacter =
+   (  NUMBER &4C88F *, // FIXME: good description is missing
+      ABSENT
+   );
+
+SWI
+   SysLog_Control =
+   (  NUMBER &4C890 *, // FIXME: good description is missing
+      ABSENT
+   );
+
+SWI
+   SysLog_Enumerate =
+   (  NUMBER &4C891 *, // FIXME: good description is missing
+      ABSENT
+   )

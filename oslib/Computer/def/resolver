@@ -1,0 +1,72 @@
+TITLE Resolver;
+
+AUTHOR "Tom Hughes, tom@compton.nu, 21 Sep 2002";
+
+NEEDS Socket;
+
+TYPE
+  Resolver_HostDetails =
+  .Struct
+  (  .Ref .String: name,
+     .Ref .Ref .String: aliases,
+     Socket_AF: address_type,
+     .Int: address_size,
+     .Ref .Ref .Byte: addresses
+  );
+
+TYPE
+   ResolverCacheControl_Reason = .Int;
+CONST
+   ResolverCacheControlReason_FlushFailed   = ResolverCacheControl_Reason: 0,
+   ResolverCacheControlReason_FlushAll      = ResolverCacheControl_Reason: 1,
+   ResolverCacheControlReason_FlushHost     = ResolverCacheControl_Reason: 2,
+   ResolverCacheControlReason_RereadConfig  = ResolverCacheControl_Reason: 3,
+   ResolverCacheControlReason_NoCacheFailed = ResolverCacheControl_Reason: 8,
+   ResolverCacheControlReason_DoCacheFailed = ResolverCacheControl_Reason: 9;
+
+SWI
+   Resolver_GetHostByName =
+   (  NUMBER &46000 "Lookup a hostname string (single-tasking)",
+      ENTRY
+      (  R1 -> .String: host_name
+      ),
+      EXIT
+      (  R0 = .Int: errno,
+         R1! = .Ref Resolver_HostDetails: host_details
+   )  ),
+
+   Resolver_GetHost =
+   (  NUMBER 0x46001 "Lookup a hostname string (multi-tasking)",
+      ENTRY
+      (  R1 -> .Char: host_name
+      ),
+      EXIT
+      (  R0 = .Int: errno,
+         R1! = .Ref Resolver_HostDetails: host_details
+   )  ),
+
+   Resolver_GetCache =
+   (  NUMBER 0x46002 "Internal use only",
+      ABSENT
+   ),
+
+   Resolver_CacheControl =
+   (  NUMBER 0x46003 "Allow a calling application to control the Resolver
+                      cache in a limited way",
+      ENTRY
+      (  R0 = ResolverCacheControl_Reason: reason
+   )  );
+
+SWI
+   // Extends OS_GenerateEvent
+   EventInternet_DNSResolveComplete =
+   (  NUMBER 0x22,
+      ENTRY
+      (  R0 # 19,
+         R1 # 258 "A Resolver resolution request completes, either successfully
+                   or by timing out",
+         R2 -> .Char: host_name,
+         R3 = .Int: ip_address,
+         R4 = .Int: errno,
+         R5 -> Resolver_HostDetails: host_details
+   )  )

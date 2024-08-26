@@ -1,0 +1,101 @@
+TITLE RouterDiscovery "RISC OS 6";
+AUTHOR "John Tytgat, John.Tytgat@aaug.net, 28 Aug 2009";
+
+NEEDS OS;
+
+TYPE
+   RouterDiscoveryControl_Operation = .Int;
+CONST
+   RouterDiscoveryControlOperation_ActivateHostMode   = RouterDiscoveryControl_Operation: 0,
+   RouterDiscoveryControlOperation_ActivateRouterMode = RouterDiscoveryControl_Operation: 1,
+   RouterDiscoveryControlOperation_Deactivate         = RouterDiscoveryControl_Operation: 2;
+
+TYPE
+   RouterDiscovery_RouterPreference =
+   .Struct
+   (  .Int: router_address,
+      .Int: preference
+   );
+
+SWI
+   RouterDiscovery_Control =
+   (  NUMBER 0x57D80 "To control the operation of the RouterDiscovery module",
+      ABSENT
+   ),
+
+   RouterDiscoveryControl_ActivateHostMode =
+   (  NUMBER 0x57D80,
+      ENTRY
+      (  R0 # RouterDiscoveryControlOperation_ActivateHostMode,
+         R1 -> .Char: interface,
+         R2 = .Int: solicitations_address
+   )  ),
+
+   RouterDiscoveryControl_ActivateRouterMode =
+   (  NUMBER 0x57D80,
+      ENTRY
+      (  R0 # RouterDiscoveryControlOperation_ActivateRouterMode,
+         R1 -> .Char: interface,
+         R2 = .Int: advertisements_address,
+         R3 = .Int: min_adv_interval,
+         R4 = .Int: max_adv_interval,
+         R5 -> RouterDiscovery_RouterPreference: preference
+   )  ),
+
+   RouterDiscoveryControl_Deactivate =
+   (  NUMBER 0x57D80,
+      ENTRY
+      (  R0 # RouterDiscoveryControlOperation_Deactivate,
+         R1 -> .Char: interface
+   )  ),
+
+   RouterDiscovery_Status =
+   (  NUMBER 0x57D81,
+      ABSENT
+   );
+
+TYPE
+   ServiceInternetService40_State = .Int;
+CONST
+   ServiceInternetService40State_EndMonitoring   = ServiceInternetService40_State: 0,
+   ServiceInternetService40State_StartSoliciting = ServiceInternetService40_State: 1,
+   ServiceInternetService40State_StartMonitoring = ServiceInternetService40_State: 2;
+
+TYPE
+   ServiceInternetService41_State = .Int;
+CONST
+   ServiceInternetService41State_EndAdvertisements   = ServiceInternetService41_State: 0,
+   ServiceInternetService41State_StartAdvertisements = ServiceInternetService41_State: 1;
+
+SWI
+   // Extends OS_ServiceCall
+   Service_InternetService40 =
+   (  NUMBER 0x30,
+      ENTRY
+      (  R0 # 0x40 "RouterDiscovery module starts monitoring an interface for
+                    router advertisement packets",
+         R1 # 0xB0,
+         R2 = ServiceInternetService40_State: state,
+         R3 -> .Char: interface
+   )  ),
+
+   Service_InternetService41 =
+   (  NUMBER 0x30,
+      ENTRY
+      (  R0 # 0x41 "RouterDiscovery module starts issuing advertisements on an
+                    interface",
+         R1 # 0xB0,
+         R2 = ServiceInternetService41_State: state,
+         R3 -> .Char: interface,
+         R4 = .Int: num_routers,
+         R5 -> RouterDiscovery_RouterPreference: preference
+   )  ),
+
+   Service_InternetService42 =
+   (  NUMBER 0x30,
+      ENTRY
+      (  R0 # 0x42 "RouterDiscovery module changes the default route",
+         R1 # 0xB0,
+         R2 -> .Char: interface,
+         R3 = .Int: gateway
+   )  )

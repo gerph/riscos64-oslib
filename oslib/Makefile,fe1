@@ -1,0 +1,111 @@
+# Makefile for OSLib
+#
+
+#
+# Program specific options:
+#
+COMPONENT  = OSLib
+TARGET     = OSLib
+INITTARGET = inittarget
+CLEANTARGET = cleantarget
+NOLIBFILE  = true
+OBJS       = o.compositeOSLib
+
+EXPORTHDRS = ${EXP_LIB}.${COMPONENT}.Core.h.types \
+             ${EXP_LIB}.${COMPONENT}.Core.h.macros \
+             ${EXP_LIB}.${COMPONENT}.Core.hdr.types \
+             ${EXP_LIB}.${COMPONENT}.Core.hdr.macros \
+             Core.${MAKECMDGOALS} \
+             Computer.${MAKECMDGOALS} \
+             Toolbox.${MAKECMDGOALS} \
+             User.${MAKECMDGOALS}
+
+include LibExport
+
+# Explicit targets
+inittarget:
+		${MKDIR} ${EXP_LIB}.${COMPONENT}.Core.h
+		${MKDIR} ${EXP_LIB}.${COMPONENT}.Core.hdr
+
+# Exports
+${EXP_LIB}.${COMPONENT}.Core.h.types: Types.header
+        ${CP} $?  $@  ${CPFLAGS}
+${EXP_LIB}.${COMPONENT}.Core.h.macros: Macros.header
+        ${CP} $?  $@  ${CPFLAGS}
+${EXP_LIB}.${COMPONENT}.Core.hdr.types: Types.Hdr
+        ${CP} $?  $@  ${CPFLAGS}
+${EXP_LIB}.${COMPONENT}.Core.hdr.macros: Macros.Hdr
+        ${CP} $?  $@  ${CPFLAGS}
+
+LIBS = \
+Core.o.OSLib_Core \
+User.o.OSLib_User \
+Toolbox.o.OSLib_Toolbox \
+Computer.o.OSLib_Computer \
+
+LIBS32 = \
+Core.o32.OSLib_Core \
+User.o32.OSLib_User \
+Toolbox.o32.OSLib_Toolbox \
+Computer.o32.OSLib_Computer \
+
+LIBCONTENTS = \
+Core.o.OSLib_Core|** \
+User.o.OSLib_User|** \
+Toolbox.o.OSLib_Toolbox|** \
+Computer.o.OSLib_Computer|** \
+
+LIBCONTENTS32 = \
+Core.o32.OSLib_Core|** \
+User.o32.OSLib_User|** \
+Toolbox.o32.OSLib_Toolbox|** \
+Computer.o32.OSLib_Computer|** \
+
+# Clean all the lower makefiles
+cleantarget:
+        dir Core
+        ${MAKE} clean
+        dir ^
+        dir User
+        ${MAKE} clean
+        dir ^
+        dir Toolbox
+        ${MAKE} clean
+        dir ^
+        dir Computer
+        ${MAKE} clean
+        dir ^
+
+
+Core.o.OSLib_Core Core.o32.OSLib_Core Core.${MAKECMDGOALS} Core/${MAKECMDGOALS}:
+        @echo "Building 'Core' (${MAKECMDGOALS})"
+        dir Core
+        ${MAKE} ${MAKECMDGOALS}
+        dir ^
+
+User.o.OSLib_User User.o32.OSLib_User User.${MAKECMDGOALS} User/${MAKECMDGOALS}:
+        @echo "Building 'User' (${MAKECMDGOALS})"
+        dir User
+        ${MAKE} ${MAKECMDGOALS}
+        dir ^
+
+Toolbox.o.OSLib_Toolbox Toolbox.o32.OSLib_Toolbox Toolbox.${MAKECMDGOALS} Toolbox/${MAKECMDGOALS}:
+        @echo "Building 'Toolbox' (${MAKECMDGOALS})"
+        dir Toolbox
+        ${MAKE} ${MAKECMDGOALS}
+        dir ^
+
+Computer.o.OSLib_Computer Computer.o32.OSLib_Computer Computer.${MAKECMDGOALS} Toolbox/${MAKECMDGOALS}:
+        @echo "Building 'Computer' (${MAKECMDGOALS})"
+        dir Computer
+        ${MAKE} ${MAKECMDGOALS}
+        dir ^
+
+o.compositeOSLib: $(LIBS)
+        ${MAKEALF} -o $@ -b $(LIBCONTENTS)
+oz.compositeOSLib: o.compositeOSLib
+        ${CP} $? $@ ${CPFLAGS}
+o32.compositeOSLib: $(LIBS32)
+        ${MAKEALF} -o $@ -b $(LIBCONTENTS)
+oz32.compositeOSLib: o32.compositeOSLib
+        ${CP} $? $@ ${CPFLAGS}
