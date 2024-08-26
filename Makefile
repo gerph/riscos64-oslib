@@ -68,6 +68,7 @@ clean:
 .PHONY: srcs
 srcs: src/os.s
 src/os.s: oslib_parser.py oslib/Core/def/os
+	mkdir src
 	./create_sfiles.sh
 
 ifeq (${CROSS_ROOT},)
