@@ -67,8 +67,8 @@ clean:
 
 .PHONY: srcs
 srcs: src/os.s
-src/os.s: oslib_parser.py oslib/Core/def/os
-	mkdir src
+src/os.s: oslib_parser.py templates/aarch64-api.s.j2 oslib/Core/def/os
+	mkdir -p src
 	./create_sfiles.sh
 
 ifeq (${CROSS_ROOT},)
