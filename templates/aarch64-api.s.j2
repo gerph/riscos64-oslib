@@ -126,6 +126,7 @@ x{{swi.name|lower}}:
 
 {#- Entry sequence #}
     STP     x29, x30, [sp, #-16]!
+    MOV     x29, sp
 
 {%- if swi.outregs() %}
 
