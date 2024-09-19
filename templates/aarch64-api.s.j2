@@ -86,6 +86,18 @@
 {%- endmacro -%}
 
 
+// General macros
+
+.altmacro
+.macro signature name
+0:
+.asciz "\name"
+.balign 4
+1:
+.long 0xFF000000 + ( .- 0b )
+.endm
+
+
 {% for defmod in defmods %}
  {%- if defmod.inctype != 'required' -%}
   {%- continue -%}
@@ -100,6 +112,7 @@
 
 .global x{{swi.name|lower}}
 
+    signature x{{swi.name|lower}}
 x{{swi.name|lower}}:
 
 {#- Prepare the output registers, stripping invisible elements -#}
