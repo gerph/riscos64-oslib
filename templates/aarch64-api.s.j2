@@ -108,12 +108,12 @@
 // ############## {{ defmod.name }} interfaces #################################
 {%- for name, swi in defmod.interfaces.items()|sort %}
 
-.section .text.x{{swi.name|lower}}
+.section .text.x{{ oslib_swifunc(swi.name) }}
 
-.global x{{swi.name|lower}}
+.global x{{ oslib_swifunc(swi.name) }}
 
-    signature x{{swi.name|lower}}
-x{{swi.name|lower}}:
+    signature x{{ oslib_swifunc(swi.name) }}
+x{{ oslib_swifunc(swi.name) }}:
 
 {#- Prepare the output registers, stripping invisible elements -#}
 {%- set ns = namespace(exitregs=[]) -%}
