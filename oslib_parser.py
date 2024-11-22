@@ -1088,6 +1088,29 @@ def create_python_api_template(defmods, filename):
                             })
 
 
+# Replacements for the function name expansion
+oslib_swifunc1_re = re.compile("([A-Z])([A-Z][a-z])")
+oslib_swifunc2_re = re.compile("([a-z])([A-Z])")
+
+
+def oslib_swifunc(name):
+    """
+    Convert a SWI name to a function name.
+
+    The name is given in the form OS_MyOperationHere and should
+    be converted to os_my_operation_here.
+    Multiple capitalised letters should become a single string,
+    eg Portable_ReadBMUVariable should become xportable_read_bmu_variable
+    """
+    if '_' not in name:
+        print("Warning: SWI '{}' does not have any underscore".format(name))
+        return name.lower()
+    (module, name) = name.split('_', 1)
+    name = oslib_swifunc1_re.sub(r"\1_\2", name)
+    name = oslib_swifunc2_re.sub(r"\1_\2", name)
+    return ("%s_%s" % (module, name)).lower()
+
+
 def create_aarch64_api(defmods, filename):
     def simple_orr_constant(defmod, value):
         if value in defmod.constants:
@@ -1110,6 +1133,7 @@ def create_aarch64_api(defmods, filename):
                                 'defmods': defmods,
                                 'types': defmods.types,
                                 'simple_orr_constant': simple_orr_constant,
+                                'oslib_swifunc': oslib_swifunc,
                             })
 
 
