@@ -27,6 +27,9 @@
 {%- if value in defmod.constants -%}
 {%- set value = defmod.constants.get(value).value -%}
 {%- endif -%}
+{%- if value is iterable -%}
+{%- set value = value[0] -%}
+{%- endif -%}
 {%- if value < 65536 or (value % 65536) == 0 -%}
     MOV     x{{regnum}}, #{{value}}
 {%- else -%}
