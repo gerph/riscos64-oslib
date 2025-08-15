@@ -27,7 +27,7 @@ CONST
    Joystick_HalfWordYShift        = .Int: 16;
 SWI Joystick_ReadHalfWord =
    (  NUMBER 0x43F40 "Returns the state of a joystick",
-      ENTRY (R0 | .Int: joystick_no, R0 # %100000000),
+      ENTRY (R0 # %100000000, R0 | .Int: joystick_no),
       EXIT  (R0! = Joystick_HalfWordState: state, R1 = .Bits: switches)
    );
 
