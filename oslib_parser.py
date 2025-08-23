@@ -1237,6 +1237,7 @@ def create_module_template(defmods, filename, filetype):
                                 'types': defmods.types,
                                 'used_types': lambda defmod: TypesUsed(defmod, defmods.types),
                                 'used_constants': lambda defmod: ConstantsUsed(defmod, defmods.constants, defmods.types),
+                                'dtype_width': lambda dtype: dtype_width(dtype, defmods),
                             })
 
 
@@ -1288,6 +1289,35 @@ def oslib_swifunc(name):
     return ("%s_%s" % (module, name)).lower()
 
 
+def dtype_width(dtype, defmods):
+    """
+    Return the bit-width of a given type.
+    """
+    width = 64;
+    if isinstance(dtype, tuple):
+        dtype = dtype[0]
+    if isinstance(dtype, str):
+        dtype = dtype.lower()
+        #print("dtype: %s" % (dtype,))
+
+        while isinstance(dtype, str):
+            resolved = defmods.lookup_type(dtype)
+            if resolved:
+                #print("  resolves to %s" % (resolved,))
+                dtype = resolved.dtype
+            else:
+                break
+
+    if not isinstance(dtype, str):
+        raise RuntimeError("Cannot determine width of %r" % (dtype,))
+
+    if dtype[0] == '&':
+        width = 64
+    elif dtype in ('.int', '.bits', '.bool'):
+        width = 32
+    return width
+
+
 def create_aarch64_api(defmods, filename):
     def simple_orr_constant(defmod, value):
         if value in defmod.constants:
@@ -1316,6 +1346,7 @@ def create_aarch64_api(defmods, filename):
                                 'types': defmods.types,
                                 'simple_orr_constant': simple_orr_constant,
                                 'oslib_swifunc': oslib_swifunc,
+                                'dtype_width': lambda dtype: dtype_width(dtype, defmods),
                             })
 
 
@@ -1417,6 +1448,7 @@ class DefMods(object):
         self.defmods = []
         self.modnames = {}
         self._all_types = None
+        self._lookup_types = None
         self._all_constants = None
 
     def __repr__(self):
@@ -1478,6 +1510,10 @@ class DefMods(object):
         # Clear the cache
         self._all_types = None
 
+    def lookup_type(self, name):
+        name = name.lower()
+        return self.lookup_types.get(name, None)
+
     @property
     def types(self):
         if self._all_types is None:
@@ -1487,6 +1523,17 @@ class DefMods(object):
                 self._all_types.update(types)
 
         return self._all_types
+
+    @property
+    def lookup_types(self):
+        if self._lookup_types is None:
+            self._lookup_types = {}
+            for defmod in self.defmods:
+                types = dict((name, TypeRef(name=name, dtype=dtype, defmod=defmod)) for name, dtype in defmod.types.items())
+                for name, tref in types.items():
+                    self._lookup_types[name.lower()] = tref
+
+        return self._lookup_types
 
     @property
     def constants(self):

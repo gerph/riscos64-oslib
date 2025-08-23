@@ -182,7 +182,9 @@ x{{ oslib_swifunc(swi.name) }}:
 // Store output registers
  {%- for outreg, reg in swi.outregs().items()|sort %}
     LDR     x10, [sp, #{{ 8 * loop.index0}}]
-    STR     x{{reg.reg[1:]}}, [x10]                           // {{reg.name}}
+    CBZ     x10, x{{ oslib_swifunc(swi.name) }}_noreg_{{outreg}}
+    STR     {{ 'x' if reg.assign == '->' or dtype_width(reg.dtype) == 64 else 'w' }}{{reg.reg[1:]}}, [x10]                           // {{reg.name}}
+x{{ oslib_swifunc(swi.name) }}_noreg_{{outreg}}:
  {%- endfor %}
 {%- endif %}
 
