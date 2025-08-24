@@ -153,6 +153,7 @@ class SWI(object):
 
     def __init__(self, name):
         self.name = name
+        self.defname = name     # The defined name (not the modified name)
         self.number = None
         self.description = None
         self.starred = False
@@ -232,7 +233,10 @@ class DefMod(object):
         self.needs = []
         self.types = {}
         self.swis = {}  # All of the SWI definitions
+
+        # All the interfaces (swis, vectors, service, events, upcalls)
         self.interfaces = {}
+
         # Special cases of swis (the entries are also in SWIs):
         self.modswis = {}  # Just the SWIs for this module
         self.vectors = {}
@@ -1267,9 +1271,14 @@ def create_python_api_template(defmods, filename):
 
 
 # Replacements for the function name expansion
-oslib_swifunc1_re = re.compile("([A-Z])([A-Z][a-z])")
-oslib_swifunc2_re = re.compile("([a-z])([A-Z])")
+oslib_swifunc1_re = re.compile("([^a-z])([A-Z])([A-Z][a-z])")
+oslib_swifunc2_re = re.compile("([a-z0-9])([A-Z])(?!$)")
 
+# Special names that aren't subject to the usual transformation
+oslib_swifunc_special = {
+        'Hourglass_LEDs': 'hourglass_leds',
+        'OS_CallAVector': 'os_call_a_vector',
+    }
 
 def oslib_swifunc(name):
     """
@@ -1280,11 +1289,17 @@ def oslib_swifunc(name):
     Multiple capitalised letters should become a single string,
     eg Portable_ReadBMUVariable should become xportable_read_bmu_variable
     """
+
+    # Handle the special cases
+    replacement = oslib_swifunc_special.get(name)
+    if replacement:
+        return replacement
+
     if '_' not in name:
         print("Warning: SWI '{}' does not have any underscore".format(name))
         return name.lower()
     (module, name) = name.split('_', 1)
-    name = oslib_swifunc1_re.sub(r"\1_\2", name)
+    name = oslib_swifunc1_re.sub(r"\1\2_\3", name)
     name = oslib_swifunc2_re.sub(r"\1_\2", name)
     return ("%s_%s" % (module, name)).lower()
 

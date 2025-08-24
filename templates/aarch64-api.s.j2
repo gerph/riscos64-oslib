@@ -109,14 +109,14 @@
 
 
 // ############## {{ defmod.name }} interfaces #################################
-{%- for name, swi in defmod.interfaces.items()|sort %}
+{%- for name, swi in defmod.interfaces.items()|sort if not swi.hidden %}
 
-.section .text.x{{ oslib_swifunc(swi.name) }}
+.section .text.x{{ oslib_swifunc(swi.defname) }}
 
-.global x{{ oslib_swifunc(swi.name) }}
+.global x{{ oslib_swifunc(swi.defname) }}
 
-    signature x{{ oslib_swifunc(swi.name) }}
-x{{ oslib_swifunc(swi.name) }}:
+    signature x{{ oslib_swifunc(swi.defname) }}
+x{{ oslib_swifunc(swi.defname) }}:
 
 {#- Prepare the output registers, stripping invisible elements -#}
 {%- set ns = namespace(exitregs=[]) -%}
@@ -182,9 +182,9 @@ x{{ oslib_swifunc(swi.name) }}:
 // Store output registers
  {%- for outreg, reg in swi.outregs().items()|sort %}
     LDR     x10, [sp, #{{ 8 * loop.index0}}]
-    CBZ     x10, x{{ oslib_swifunc(swi.name) }}_noreg_{{outreg}}
+    CBZ     x10, x{{ oslib_swifunc(swi.defname) }}_noreg_{{outreg}}
     STR     {{ 'x' if reg.assign == '->' or dtype_width(reg.dtype) == 64 else 'w' }}{{reg.reg[1:]}}, [x10]                           // {{reg.name}}
-x{{ oslib_swifunc(swi.name) }}_noreg_{{outreg}}:
+x{{ oslib_swifunc(swi.defname) }}_noreg_{{outreg}}:
  {%- endfor %}
 {%- endif %}
 
