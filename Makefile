@@ -103,7 +103,7 @@ SRCS = $(wildcard src/*.s)
 OBJS = ${SRCS:%.s=%.o}
 
 headers: include/os.h
-include/os.h: oslib/include/os.h create_hfiles
+include/os.h: oslib/include/os.h create_hfiles.sh
 	mkdir -p include
 	./create_hfiles.sh
 

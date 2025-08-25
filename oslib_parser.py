@@ -129,12 +129,12 @@ class Constant(object):
 
 class Register(object):
 
-    def __init__(self, reg, assign, dtype, name, update=False, corrupted=False):
+    def __init__(self, reg, assign, dtype, name, returned=False, corrupted=False):
         self.reg = reg
         self.assign = assign
         self.dtype = dtype
         self.name = name
-        self.update = update
+        self.returned = returned
         self.corrupted = corrupted
 
     def copy(self):
@@ -142,7 +142,7 @@ class Register(object):
                         self.assign,
                         self.dtype,
                         self.name,
-                        self.update,
+                        self.returned,
                         self.corrupted)
 
     def __repr__(self):
@@ -161,6 +161,7 @@ class SWI(object):
         # When hidden, the entry and exit parameters are not valid
         self.entry = []
         self.exit = []
+        self.returned = None
 
     def __repr__(self):
         if self.hidden:
@@ -178,6 +179,9 @@ class SWI(object):
     def add_exit(self, reg):
         self.exit.append(reg)
         # Create a dictionary of the registers as well?
+
+    def set_return(self, reg):
+        self.returned = reg
 
     def inregs(self):
         inregs = {}
@@ -672,20 +676,22 @@ class Statement(object):
 
                 elif tok == 'EXIT':
                     self.expect('(')
+                    return_reg = None
                     while True:
                         reg = self.token().upper()
                         if reg[0] != 'R' and reg != 'FLAGS':
                             raise ParseError("Exit register name not understood: %s" % (reg,))
-                        updated = False
+                        returned = False
                         corrupted = False
                         if reg == 'FLAGS':
                             assign = self.expect(('!',))
+                            returned = True
                             dtype = '.flags'
                             name = None
                         else:
                             assign = self.expect(('!', '?', '->', '=', '#'))
                             if assign == '!':
-                                updated = True
+                                returned = True
                                 assign = self.expect(('?', '->', '=', '#'))
                             if assign == '#':
                                 dtype = '.literal'
@@ -706,8 +712,14 @@ class Statement(object):
                         else:
                             self.push_token(tok)
 
-                        addreg = Register(reg, assign, dtype, name, updated, corrupted)
+                        addreg = Register(reg, assign, dtype, name, returned, corrupted)
                         swi.add_exit(addreg)
+                        if returned:
+                            if return_reg is None:
+                                swi.set_return(addreg)
+                                return_reg = addreg
+                            else:
+                                raise ParseError("Repeated return register specification for register %s (repeats %s) in %r" % (reg, return_reg, swi))
 
                         tok = self.expect((',', ')'))
                         if tok == ')':

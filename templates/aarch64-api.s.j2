@@ -109,14 +109,14 @@
 
 
 // ############## {{ defmod.name }} interfaces #################################
-{%- for name, swi in defmod.interfaces.items()|sort if not swi.hidden %}
 
-.section .text.x{{ oslib_swifunc(swi.defname) }}
+{%- macro swi_function(swi, x_variant) -%}
+.section .text.{{ 'x' if x_variant else ''}}{{ oslib_swifunc(swi.defname) }}
 
-.global x{{ oslib_swifunc(swi.defname) }}
+.global {{ 'x' if x_variant else ''}}{{ oslib_swifunc(swi.defname) }}
 
-    signature x{{ oslib_swifunc(swi.defname) }}
-x{{ oslib_swifunc(swi.defname) }}:
+    signature {{ 'x' if x_variant else ''}}{{ oslib_swifunc(swi.defname) }}
+{{ 'x' if x_variant else ''}}{{ oslib_swifunc(swi.defname) }}:
 
 {#- Prepare the output registers, stripping invisible elements -#}
 {%- set ns = namespace(exitregs=[]) -%}
@@ -126,6 +126,7 @@ x{{ oslib_swifunc(swi.defname) }}:
  {%- endif -%}
 {%- endfor -%}
 {%- set exitregs = ns.exitregs -%}
+{%- set nexitregs = (exitregs|length) - (1 if not x_variant and swi.returned else 0) -%}
 
 
 {#- Register definition #}
@@ -144,13 +145,15 @@ x{{ oslib_swifunc(swi.defname) }}:
     STP     x29, x30, [sp, #-16]!
     MOV     x29, sp
 
-{%- if swi.outregs() %}
+{%- if nexitregs %}
 
 // Prepare output registers
 {#- Prepare output registers #}
     SUB     sp, sp, #{{ (((exitregs|length) + 1) // 2) * 16 }}
  {%- for outreg, reg in swi.outregs().items()|sort %}
+  {%- if x_variant or not reg.returned %}
     STR     x{{outreg}}, [sp, #{{ 8 * loop.index0}}]
+  {%- endif %}
  {%- endfor %}
 {%- endif %}
 
@@ -166,14 +169,16 @@ x{{ oslib_swifunc(swi.defname) }}:
 {%- endif %}
 
 // Call SWI
-{%- set swinumber = (swi.number + (2**17)) %}
+{%- set swinumber = (swi.number + ((2**17) if x_variant else 0)) %}
     {{ mov_constant(defmod, '10', swinumber) }}
-    SVC     #0                                  // {{ extract_swi_name(swi) }} ({{ '&{:x}'.format(swi.number)}})
+    SVC     #0                                  // {{ 'X' if x_variant else '' }}{{ extract_swi_name(swi) }} ({{ '&{:x}'.format(swi.number)}})
 
-{%- if exitregs %}
+{%- if not x_variant -%}
+ {%- if exitregs %}
     CSEL    x12, xzr, x0, VC
-{%- else %}
+ {%- else %}
     CSEL    x0, xzr, x0, VC
+ {%- endif %}
 {%- endif %}
 
 {#- SWI output registers -#}
@@ -181,21 +186,26 @@ x{{ oslib_swifunc(swi.defname) }}:
 
 // Store output registers
  {%- for outreg, reg in swi.outregs().items()|sort %}
+  {%- if x_variant or not reg.returned %}
     LDR     x10, [sp, #{{ 8 * loop.index0}}]
     CBZ     x10, x{{ oslib_swifunc(swi.defname) }}_noreg_{{outreg}}
     STR     {{ 'x' if reg.assign == '->' or dtype_width(reg.dtype) == 64 else 'w' }}{{reg.reg[1:]}}, [x10]                           // {{reg.name}}
-x{{ oslib_swifunc(swi.defname) }}_noreg_{{outreg}}:
+{{ 'x' if x_variant else ''}}{{ oslib_swifunc(swi.defname) }}_noreg_{{outreg}}:
+  {%- else %}
+    MOV     {{ 'x' if reg.assign == '->' or dtype_width(reg.dtype) == 64 else 'w' }}0, {{ 'x' if reg.assign == '->' or dtype_width(reg.dtype) == 64 else 'w' }}{{reg.reg[1:]}}                              // {{reg.name}} (returned value)
+  {%- endif %}
  {%- endfor %}
 {%- endif %}
 
-{%- if exitregs %}
+{%- if nexitregs %}
 
 // Restore stack from output registers
     ADD     sp, sp, #{{ (((exitregs|length) + 1) // 2) * 16 }}
 {%- endif %}
 
-{%- if exitregs %}
-    MOV     x0, x12
+{%- if exitregs and x_variant %}
+
+    MOV     x0, x12                             // Error pointer (or NULL)
 {%- endif %}
 
     LDP     x29, x30, [sp], #16
@@ -208,6 +218,10 @@ x{{ oslib_swifunc(swi.defname) }}_noreg_{{outreg}}:
   {%- endfor -%}
  {%- endfor -%}
 {%- endif %}
+{%- endmacro -%}
 
+{%- for name, swi in defmod.interfaces.items()|sort if not swi.hidden %}
+{{ swi_function(swi, true) }}
+{{ swi_function(swi, false) }}
 {% endfor %}
 {% endfor %}
