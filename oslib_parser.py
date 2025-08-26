@@ -210,10 +210,13 @@ class SWI(object):
 
         return inregs
 
-    def outregs(self):
+    def outregs(self, x_variant):
         outregs = {}
         nreg = len([reg for reg in self.inregs() if reg != -1])
         for reg in self.exit:
+            if reg.returned and not x_variant:
+                # In the non-x-variant this output register is absent
+                continue
             if reg.reg[0] == 'R' and reg.assign != '?':
                 outregs[nreg] = reg
                 nreg += 1
@@ -1028,11 +1031,21 @@ def value_repr(value, name, dtype='unknown'):
         return value
 
 
+def warning(msg, defmod=None, swi=None):
+    print("WARNING: %s" % (msg,))
+    if defmod:
+        print("  whilst processing module %r" % (defmod,))
+    if swi:
+        print("  in interface %r" % (swi,))
+    return ''
+
+
 jinja2_functions = {
         'now': now,
         'timestamp': timestamp,
         'value_repr': value_repr,
         'set': set,
+        'warning': warning,
     }
 
 

@@ -74,6 +74,8 @@
      {%- endif -%}
     {%- endif -%}
    {%- endif -%}
+  {%- elif reg.reg[1:]|int > 7 %}
+    LDR     x{{inreg}}, [x29, #16 + {{ inreg - 8 }} * 8]  // arg {{ inreg }} on caller stack
   {%- elif reg.reg[1:]|int == inreg %}
     // x{{inreg}} = {{ reg.name }}
   {%- else %}
@@ -119,14 +121,7 @@
 {{ 'x' if x_variant else ''}}{{ oslib_swifunc(swi.defname) }}:
 
 {#- Prepare the output registers, stripping invisible elements -#}
-{%- set ns = namespace(exitregs=[]) -%}
-{%- for reg in swi.exit -%}
- {%- if reg.name and reg.reg.startswith('R') -%}
-  {{ ns.exitregs.append(reg) or '' }}
- {%- endif -%}
-{%- endfor -%}
-{%- set exitregs = ns.exitregs -%}
-{%- set nexitregs = (exitregs|length) - (1 if not x_variant and swi.returned else 0) -%}
+{%- set nexitregs = (swi.outregs(x_variant)|length) -%}
 
 
 {#- Register definition #}
@@ -148,11 +143,11 @@
 {%- if nexitregs %}
 
 // Prepare output registers
-{#- Prepare output registers #}
-    SUB     sp, sp, #{{ (((exitregs|length) + 1) // 2) * 16 }}
- {%- for outreg, reg in swi.outregs().items()|sort %}
-  {%- if x_variant or not reg.returned %}
-    STR     x{{outreg}}, [sp, #{{ 8 * loop.index0}}]
+ {%- for outreg, reg in swi.outregs(x_variant).items()|sort %}
+  {%- if outreg < 8 %}
+    MOV     x{{ 15 - loop.index0 }}, x{{ outreg }}                             // output {{ reg.name }}
+  {%- else %}
+    // output {{ reg.name }}: arg {{ outreg }} on caller stack at offset {{ outreg - 8 }} * 8
   {%- endif %}
  {%- endfor %}
 {%- endif %}
@@ -173,39 +168,42 @@
     {{ mov_constant(defmod, '10', swinumber) }}
     SVC     #0                                  // {{ 'X' if x_variant else '' }}{{ extract_swi_name(swi) }} ({{ '&{:x}'.format(swi.number)}})
 
-{%- if not x_variant -%}
- {%- if exitregs %}
-    CSEL    x12, xzr, x0, VC
+{%- if x_variant -%}
+ {%- if nexitregs %}
+    CSEL    x17, xzr, x0, VC
  {%- else %}
     CSEL    x0, xzr, x0, VC
  {%- endif %}
 {%- endif %}
 
 {#- SWI output registers -#}
-{%- if swi.outregs() %}
+{%- if swi.outregs(x_variant) %}
 
 // Store output registers
- {%- for outreg, reg in swi.outregs().items()|sort %}
-  {%- if x_variant or not reg.returned %}
-    LDR     x10, [sp, #{{ 8 * loop.index0}}]
-    CBZ     x10, x{{ oslib_swifunc(swi.defname) }}_noreg_{{outreg}}
-    STR     {{ 'x' if reg.assign == '->' or dtype_width(reg.dtype) == 64 else 'w' }}{{reg.reg[1:]}}, [x10]                           // {{reg.name}}
-{{ 'x' if x_variant else ''}}{{ oslib_swifunc(swi.defname) }}_noreg_{{outreg}}:
+ {%- for outreg, reg in swi.outregs(x_variant).items()|sort %}
+  {%- if outreg > 7 %}
+    LDR     x10, [x29, #16 + {{ outreg - 8 }} * 8]             // output {{ reg.name }}
+  {%- set usereg = 'x10' %}
   {%- else %}
-    MOV     {{ 'x' if reg.assign == '->' or dtype_width(reg.dtype) == 64 else 'w' }}0, {{ 'x' if reg.assign == '->' or dtype_width(reg.dtype) == 64 else 'w' }}{{reg.reg[1:]}}                              // {{reg.name}} (returned value)
+  {%- set usereg = 'x' + ((15 - loop.index0)|string) %}
   {%- endif %}
+    CBZ     {{usereg}}, x{{ oslib_swifunc(swi.defname) }}_noreg_{{outreg}}
+    STR     {{ 'x' if reg.assign == '->' or dtype_width(reg.dtype) == 64 else 'w' }}{{reg.reg[1:]}}, [{{usereg}}]                           // output {{reg.name}}
+{{ 'x' if x_variant else ''}}{{ oslib_swifunc(swi.defname) }}_noreg_{{outreg}}:
  {%- endfor %}
 {%- endif %}
-
-{%- if nexitregs %}
-
-// Restore stack from output registers
-    ADD     sp, sp, #{{ (((exitregs|length) + 1) // 2) * 16 }}
+{%- if swi.returned and not x_variant and swi.returned.reg != 'FLAGS' %}
+ {%- if swi.returned.reg[1:] != '0' %}
+    MOV     {{ 'x' if swi.returned.assign == '->' or dtype_width(swi.returned.dtype) == 64 else 'w' }}0, {{ 'x' if swi.returned.assign == '->' or dtype_width(swi.returned.dtype) == 64 else 'w' }}{{swi.returned.reg[1:]}}                              // {{swi.returned.name}} (returned value)
+ {%- else %}
+    // x0 = {{swi.returned.name}} (returned value)
+ {%- endif %}
 {%- endif %}
 
-{%- if exitregs and x_variant %}
 
-    MOV     x0, x12                             // Error pointer (or NULL)
+{%- if nexitregs and x_variant %}
+
+    MOV     x0, x17                             // Error pointer (or NULL)
 {%- endif %}
 
     LDP     x29, x30, [sp], #16
