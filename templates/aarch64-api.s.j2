@@ -74,7 +74,7 @@
      {%- endif -%}
     {%- endif -%}
    {%- endif -%}
-  {%- elif reg.reg[1:]|int > 7 %}
+  {%- elif inreg > 7 %}
     LDR     x{{inreg}}, [x29, #16 + {{ inreg - 8 }} * 8]  // arg {{ inreg }} on caller stack
   {%- elif reg.reg[1:]|int == inreg %}
     // x{{inreg}} = {{ reg.name }}
