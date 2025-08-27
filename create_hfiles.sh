@@ -16,7 +16,7 @@ for i in oslib/include/*.h oslib/Macros/header oslib/Types/header ; do
     elif [[ "$i" == 'oslib/Types/header' ]] ; then
         name="types.h"
     fi
-    env LC_ALL=C sed -E -e 's/^#ifdef __swi/#if defined(__swi) || defined(__riscos64)/' \
+    env LC_ALL=C sed -E -e 's/^#ifdef  *__swi/#if defined(__swi) || defined(__riscos64)/' \
                         -e 's/([ (])int /\1int32_t /' \
                         -e 's/unsigned int32_t/uint32_t/' \
                         -e 's/typedef int32_t *bool;/#include <stdbool.h>/' \
