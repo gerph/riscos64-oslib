@@ -1,6 +1,6 @@
 TITLE ColourMenu;
 
-NEEDS Toolbox, Menu;
+NEEDS Toolbox, Menu, OS;
 
 TYPE ColourMenu_Flags = .Bits, ColourMenu_Colour = .Int;
 

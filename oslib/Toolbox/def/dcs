@@ -1,6 +1,6 @@
 TITLE DCS;
 
-NEEDS Toolbox, Window;
+NEEDS Toolbox, Window, OS;
 
 CONST Class_DCS = Toolbox_Class: 0x82A80;
 

@@ -1,6 +1,6 @@
 TITLE Slider;
 
-NEEDS Toolbox, Gadget;
+NEEDS Toolbox, Gadget, Wimp;
 
 CONST Class_Slider = Toolbox_Class: 0x240;
 

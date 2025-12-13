@@ -1,6 +1,6 @@
 TITLE Menu;
 
-NEEDS Toolbox;
+NEEDS Toolbox, OS;
 
 CONST Class_Menu = Toolbox_Class: 0x828C0;
 

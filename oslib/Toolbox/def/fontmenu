@@ -1,6 +1,6 @@
 TITLE FontMenu;
 
-NEEDS Toolbox, Menu;
+NEEDS Toolbox, Menu, OS;
 
 CONST Class_FontMenu = Toolbox_Class: 0x82a40;
 

@@ -1,6 +1,6 @@
 TITLE PopUp;
 
-NEEDS Toolbox, Gadget;
+NEEDS Toolbox, Gadget, OS;
 
 CONST PopUp_Class = Toolbox_Class: 704;
 

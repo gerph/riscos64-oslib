@@ -1,6 +1,6 @@
 TITLE ProgInfo;
 
-NEEDS Toolbox, Window;
+NEEDS Toolbox, Window, OS;
 
 CONST Class_ProgInfo = Toolbox_Class: 0x82b40;
 

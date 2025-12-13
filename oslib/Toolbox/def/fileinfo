@@ -1,6 +1,6 @@
 TITLE FileInfo;
 
-NEEDS Toolbox, Window;
+NEEDS Toolbox, Window, OS;
 
 CONST Class_FileInfo = Toolbox_Class: 0x82ac0;
 

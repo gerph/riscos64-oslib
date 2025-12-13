@@ -1,6 +1,6 @@
 TITLE PrintDbox;
 
-NEEDS Toolbox, Window;
+NEEDS Toolbox, Window, OS;
 
 CONST
    PrintDbox_GenerateAboutToBeShown    = PrintDbox_Flags: 0x00000001,
