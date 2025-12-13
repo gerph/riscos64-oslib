@@ -87,7 +87,7 @@ CONST
 
 TYPE OSSpriteOp_Action = OS_Action;
 CONST
-   //for PutSpriteScaled, PutSpriteTrfm (R5)
+   //for PutSpriteScaled, PutSpriteTrfm (R5)
    OSSpriteOp_UseMask          = OSSpriteOp_Action: 0b1000,
    OSSpriteOp_UsePalette       = OSSpriteOp_Action: 0b10000 "RISC OS 3.5+",
    OSSpriteOp_GivenWideEntries = OSSpriteOp_Action: 0b100000 "RISC OS 3.6+",

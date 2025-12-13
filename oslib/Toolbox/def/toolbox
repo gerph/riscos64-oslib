@@ -473,7 +473,7 @@ SWI
    (  NUMBER 0x30,
       ENTRY
       (  R0 = Wimp_T: task,
-         R1 # 0x44EC2 "New Toolbox task started"
+         R1 # 0x44EC2 "New Toolbox task started"
    )  ),
 
    Service_ToolboxTaskDied =
