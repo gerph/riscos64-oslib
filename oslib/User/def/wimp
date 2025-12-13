@@ -1949,8 +1949,8 @@ TYPE
    Wimp_PlotIconFlags = .Bits;
 
 CONST
-   Wimp_PlotIconGivenSpriteArea = Wimp_PlotIcon: 0x1,
-   Wimp_PlotIconUnderPointer    = Wimp_PlotIcon: 0x2;
+   Wimp_PlotIconGivenSpriteArea = Wimp_PlotIconFlags: 0x1,
+   Wimp_PlotIconUnderPointer    = Wimp_PlotIconFlags: 0x2;
 
 SWI
    Wimp_PlotIcon =

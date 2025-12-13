@@ -11,9 +11,9 @@ CONST
    ImageFileConvertConvertFlags_InOutOptionShift = .Int: 16,
 
    // Output type 'Sprite':
-   ImageFileConvertConvertFlagsOutSprite_Sprite = ImageFileConvert_Flags: 0x01,
+   ImageFileConvertConvertFlagsOutSprite_Sprite = ImageFileConvertConvert_Flags: 0x01,
    // Output type 'JPEG':
-   ImageFileConvertConvertFlagsOutJPEG_Monochrome = ImageFileConvert_Flags: 0x01,
+   ImageFileConvertConvertFlagsOutJPEG_Monochrome = ImageFileConvertConvert_Flags: 0x01,
    ImageFileConvertConvertFlagsOutJPEG_QualityShift = .Int: 1;
 
 TYPE

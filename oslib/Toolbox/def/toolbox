@@ -163,7 +163,7 @@ SWI Toolbox_ShowObject =
          R2 = Toolbox_PositionTag: tag,
          R3 -> Toolbox_Position: position,
          R4 = Toolbox_O: parent_obj,
-         R5 = TOolbox_C: parent_cmp
+         R5 = Toolbox_C: parent_cmp
 //    ),
 //    EXIT
 //    (  R0! -> Wimp_Menu: menu

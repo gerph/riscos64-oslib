@@ -12,7 +12,7 @@ CONST
    MimeMap_FormatFiletypeName = MimeMap_Format: 1,
    MimeMap_FormatMIMEType     = MimeMap_Format: 2,
    MimeMap_FormatExtension    = MimeMap_Format: 3,
-   MimeMap_FormatMac          = MImeMap_Format: 4;
+   MimeMap_FormatMac          = MimeMap_Format: 4;
 
 SWI
    MimeMap_Translate =

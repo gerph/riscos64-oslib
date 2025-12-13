@@ -488,7 +488,7 @@ SWI
          R2 = OSSpriteOp_Id: id,
          R3 = .Int: x,
          R4 = .Int: y,
-         R5 = Bool: solid)),
+         R5 = .Bool: solid)),
 
    OSSpriteOp_InsertColumn = (NUMBER 0x2E, ENTRY (R0 # 45 "Inserts column",
          R0 | OSSpriteOp_Flags: flags,

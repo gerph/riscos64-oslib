@@ -203,7 +203,7 @@ TYPE
       (  OS_Box: bbox,
          .Int: paper_size,
          Draw_PaperOptions: paper_options,
-         Float: grid_spacing,
+         .Float: grid_spacing,
          .Int: grid_division,
          .Bool: isometric,
          .Bool: auto_adjust,

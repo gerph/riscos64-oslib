@@ -118,15 +118,15 @@ SWI SCSIControl_SetErrorResponse =
 
 TYPE SCSI_QueueBehaviour = .Int;
 CONST
-   SCSI_BehaviourNoChange    = SCSI_QueueBehaviourLevel: -1 "No action,
+   SCSI_BehaviourNoChange    = SCSI_QueueBehaviour: -1 "No action,
          return previous setting",
-   SCSI_BehaviourWait        = SCSI_QueueBehaviourLevel: 0 "Queue the
+   SCSI_BehaviourWait        = SCSI_QueueBehaviour: 0 "Queue the
          command, waiting until a slot becomes free if necessary",
-   SCSI_BehaviourAwaitQueue  = SCSI_QueueBehaviourLevel: 1 "Queue the
-         command if there is room in the queue", 
-   SCSI_BehaviourAwaitDevice = SCSI_QueueBehaviourLevel: 2 "Perform the
-         command if the device is ready", 
-   SCSI_BehaviourAwaitCard   = SCSI_QueueBehaviourLevel: 3 "Perform the
+   SCSI_BehaviourAwaitQueue  = SCSI_QueueBehaviour: 1 "Queue the
+         command if there is room in the queue",
+   SCSI_BehaviourAwaitDevice = SCSI_QueueBehaviour: 2 "Perform the
+         command if the device is ready",
+   SCSI_BehaviourAwaitCard   = SCSI_QueueBehaviour: 3 "Perform the
          command if the card is ready";
 SWI SCSIControl_SetQueueBehaviour =
    (  NUMBER 0x403c2,
@@ -142,7 +142,7 @@ CONST
    SCSI_DisconnectNoChange            = SCSI_Disconnection: -1,
    SCSI_DisconnectAllowed             = SCSI_Disconnection: 0,
    SCSI_DisconnectInhibitedByBlocking = SCSI_Disconnection: 1,
-   SCSI_DisconnectInhibited           = SCSIControl_Disconnection: 2;
+   SCSI_DisconnectInhibited           = SCSI_Disconnection: 2;
 SWI SCSIControl_Disconnect =
    (  NUMBER 0x403c2,
       ENTRY (R0 # 6 "Allows/inhibits disconnection/reselection. Device
