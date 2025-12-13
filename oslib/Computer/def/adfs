@@ -2,6 +2,16 @@ TITLE ADFS;
 
 NEEDS OS, FileCore;
 
+TYPE
+   FileCore_SectorDiscAddress = .Int,
+
+   FileCore_DiscAddress64 =
+   .Struct
+   (  .Int: drive_number,
+      .Int: byte_addr_low,
+      .Int: byte_addr_high
+   );
+
 CONST Error_ADFSDriverInUse = .Bits: 0x108a0;
 
 SWI ADFS_DiscOp = (NUMBER 0x40240 "Performs various operations on a
@@ -267,50 +277,50 @@ SWI ADFS_DiscOp64 = (NUMBER 0x40254 "Performs various operations on a
 SWI ADFSDiscOp64_Verify = (NUMBER 0x40254,
       ENTRY (R1 # 0 "Verifies a disc - RISC OS 5+",
             R1 | .Bits: flags,
-            R2 = FileCore_DiscAddress64: disc_addr, R4 = .Int: size),
-      EXIT (R2 = FileCore_DiscAddress64: next_disc_addr,
+            R2 = .Ref FileCore_DiscAddress64: disc_addr, R4 = .Int: size),
+      EXIT (R2 -> FileCore_DiscAddress64: next_disc_addr,
             R4! = .Int: unverified));
 SWI ADFSDiscOp64_ReadSectors = (NUMBER 0x40254,
       ENTRY (R1 # 1 "Reads sectors from a disc - RISC OS 5+",
             R1 | .Bits: flags,
-            R2 = FileCore_DiscAddress64: disc_addr, R3 = .Ref .Data: data,
+            R2 = .Ref FileCore_DiscAddress64: disc_addr, R3 = .Ref .Data: data,
             R4 = .Int: size),
-       EXIT (R2 = FileCore_DiscAddress64: next_disc_addr,
+       EXIT (R2 -> FileCore_DiscAddress64: next_disc_addr,
              R3 = .Ref .Data: next_data,
              R4! = .Int: unread));
 SWI ADFSDiscOp64_WriteSectors = (NUMBER 0x40254,
       ENTRY (R1 # 2 "Writes sectors to a disc - RISC OS 5+",
             R1 | .Bits: flags,
-            R2 = FileCore_DiscAddress64: disc_addr, R3 -> .Data: data,
+            R2 = .Ref FileCore_DiscAddress64: disc_addr, R3 -> .Data: data,
             R4 = .Int: size),
-      EXIT (R2 = FileCore_DiscAddress64: next_disc_addr,
+      EXIT (R2 -> FileCore_DiscAddress64: next_disc_addr,
             R3 -> .Data: next_data,
             R4! = .Int: unwritten));
 SWI ADFSDiscOp64_ReadTrack = (NUMBER 0x40254,
       ENTRY (R1 # 3 "Reads a track from a floppy disc - RISC OS 5+",
             R1 | .Bits: flags,
-            R2 = FileCore_DiscAddress64: disc_addr, R3 = .Ref .Data: data));
+            R2 = .Ref FileCore_DiscAddress64: disc_addr, R3 = .Ref .Data: data));
 SWI ADFSDiscOp64_ReadId = (NUMBER 0x40254,
       ENTRY (R1 # 3 "Reads a hard disc ID - RISC OS 5+",
             R1 | .Bits: flags,
-            R2 = FileCore_DiscAddress64: disc_addr, R3 = .Ref .Data: data));
+            R2 = .Ref FileCore_DiscAddress64: disc_addr, R3 = .Ref .Data: data));
 SWI ADFSDiscOp64_WriteTrack = (NUMBER 0x40254,
       ENTRY (R1 # 4 "Writes a track to a disc - RISC OS 5+",
             R1 | .Bits: flags,
-            R2 = FileCore_DiscAddress64: disc_addr, R3 -> .Data: data));
+            R2 = .Ref FileCore_DiscAddress64: disc_addr, R3 -> .Data: data));
 SWI ADFSDiscOp64_FormatTrack = (NUMBER 0x40254,
       ENTRY (R1 # 4 "Formats a track of a disc - RISC OS 5+",
             R1 | .Bits: flags,
-            R2 = FileCore_DiscAddress64: disc_addr, R3 # 0,
+            R2 = .Ref FileCore_DiscAddress64: disc_addr, R3 # 0,
             R4 -> FileCore_TrackFormat: format));
 SWI ADFSDiscOp64_Seek = (NUMBER 0x40254,
       ENTRY (R1 # 5 "Seeks to a disc location - RISC OS 5+",
             R1 | .Bits: flags,
-            R2 = FileCore_DiscAddress64: disc_addr));
+            R2 = .Ref FileCore_DiscAddress64: disc_addr));
 SWI ADFSDiscOp64_Restore = (NUMBER 0x40254,
       ENTRY (R1 # 6 "Does a restore operation for a disc - RISC OS 5+",
             R1 | .Bits: flags,
-            R2 = FileCore_DiscAddress64: disc_addr));
+            R2 = .Ref FileCore_DiscAddress64: disc_addr));
 SWI ADFSDiscOp64_StepIn = (NUMBER 0x40254,
       ENTRY (R1 # 7 "Steps a floppy disc in one track - RISC OS 5+",
             R1 | .Bits: flags));
@@ -321,11 +331,11 @@ SWI ADFSDiscOp64_StepOut = (NUMBER 0x40254,
 SWI ADFSDiscOp64_ReadSectorsViaCache = (NUMBER 0x40254,
       ENTRY (R1 # 9 "Reads sectors of a disc using the RMA cache - RISC OS 5+",
             R1 | .Bits: flags,
-            R2 = FileCore_DiscAddress64: disc_addr,
+            R2 = .Ref FileCore_DiscAddress64: disc_addr,
             R3 = .Ref .Data: data,
             R4 = .Int: size,
             R6 = .Int: cache_handle),
-      EXIT (R2 = FileCore_DiscAddress64: next_disc_addr,
+      EXIT (R2 = .Ref FileCore_DiscAddress64: next_disc_addr,
             R3 = .Ref .Data: next_data,
             R4! = .Int: unread,
             R6 = .Int: cache_handle_out));
@@ -333,7 +343,7 @@ SWI ADFSDiscOp64_ReadSectorsViaCache = (NUMBER 0x40254,
 SWI ADFSDiscOp64_Specify = (NUMBER 0x40254,
       ENTRY (R1 # 15 "Does a specify operation on a hard disc - RISC OS 5+",
             R1 | .Bits: flags,
-            R2 = FileCore_DiscAddress64: disc_addr));
+            R2 = .Ref FileCore_DiscAddress64: disc_addr));
 
 SWI ADFS_ATAPIOp = (NUMBER 0x40255 "RISC OS 5", ABSENT);
 
