@@ -1762,6 +1762,8 @@ SWI OS_DynamicArea = //RO3.5
       (NUMBER 0x66 "Performs operations on dynamic areas -
       see individual reason codes", ABSENT);
 
+TYPE OSDynamicAreaDomain_State = .Bits;
+
 CONST
    OSDynamicArea_AllocateArea = .Int: -1,
    OSDynamicArea_AllocateBase = .Ref .Data: -1;
