@@ -50,17 +50,17 @@ CONST
    DrawFile_PathTriangle = DrawFile_PathStyleFlags: 3,
 
    DrawFile_PathJoinShift      = .Int: 0, //shift
-   DrawFile_PathJoin           = DrawFile_PathStyleFlags: 0b11, //mask
+   DrawFile_PathJoin           = .Int: 0b11, //mask
    DrawFile_PathEndShift       = .Int: 2, //shift
-   DrawFile_PathEnd            = DrawFile_PathStyleFlags: 0b1100, //mask
+   DrawFile_PathEnd            = .Int: 0b1100, //mask
    DrawFile_PathStartShift     = .Int: 4, //shift
-   DrawFile_PathStart          = DrawFile_PathStyleFlags: 0b110000, //mask
-   DrawFile_PathWindingEvenOdd = DrawFile_PathStyleFlags: 0b1000000,
-   DrawFile_PathDashed         = DrawFile_PathStyleFlags: 0b10000000,
+   DrawFile_PathStart          = .Int: 0b110000, //mask
+   DrawFile_PathWindingEvenOdd = .Int: 0b1000000,
+   DrawFile_PathDashed         = .Int: 0b10000000,
    DrawFile_PathCapWidthShift  = .Int: 16, //shift
-   DrawFile_PathCapWidth       = DrawFile_PathStyleFlags: 0b111111110000000000000000, //mask
+   DrawFile_PathCapWidth       = .Int: 0b111111110000000000000000, //mask
    DrawFile_PathCapLengthShift = .Int: 24, //shift
-   DrawFile_PathCapLength      = DrawFile_PathStyleFlags: 0b11111111000000000000000000000000; //mask
+   DrawFile_PathCapLength      = .Int: 0b11111111000000000000000000000000; //mask
 
 TYPE DrawFile_TextFlags = .Bits;
 CONST
