@@ -450,7 +450,7 @@ SWI
    (  NUMBER &4125D "Do not use",
       ENTRY
       (  R0 # 0,
-         R1 = .Int: control,
+         R1 = .Int: cntrl,
          R7 -> CD_ControlBlock: control
    )  ),
    CD_LastError =
