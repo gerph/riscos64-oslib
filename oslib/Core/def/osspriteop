@@ -8,6 +8,12 @@ CONST
 TYPE
    OSSpriteOp_TransTab = .Struct (.Byte: c ...),
 
+   OSSpriteOp_ColourMapping =
+   .Struct
+   (  .Ref .Data: workspace,
+      .Ref .Asm: transfer_function
+   ),
+
    OSSpriteOp_Area =
    .Struct
    (  .Int: size, 
