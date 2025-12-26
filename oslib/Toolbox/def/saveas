@@ -1,6 +1,6 @@
 TITLE SaveAs;
 
-NEEDS Toolbox, Window;
+NEEDS Toolbox, Window, OS;
 
 CONST Class_SaveAs = Toolbox_Class: 0x82bc0;
 

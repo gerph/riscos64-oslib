@@ -158,7 +158,7 @@ SWI
          R4 -> .Data: extension_data,
          R5 = ImageFileRender_SequenceNumber: sequence,
          R6 = .Int: xorigin,
-         R7 = .int: yorigin,
+         R7 = .Int: yorigin,
          R8 -> ImageFileRender_TransformationData: transformation_data,
          R9 -> OSSpriteOp_ColourMapping: colour_mapping
    )  ),

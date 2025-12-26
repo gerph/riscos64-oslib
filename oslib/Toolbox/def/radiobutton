@@ -72,7 +72,7 @@ SWI
          R1 = Toolbox_O: window,
          R2 # 0x184*,
          R3 = Toolbox_C: radio_button,
-         R4 = Bool: on
+         R4 = .Bool: on
    )  ),
 
    RadioButton_GetState =
@@ -84,7 +84,7 @@ SWI
          R3 = Toolbox_C: radio_button
       ),
       EXIT
-      (  R0! = Bool: on
+      (  R0! = .Bool: on
    )  );
 
 CONST Action_RadioButtonStateChanged = .Bits: 0x82883;

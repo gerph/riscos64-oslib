@@ -1,6 +1,6 @@
 TITLE ColourDbox;
 
-NEEDS Toolbox, Window, ColourPicker;
+NEEDS Toolbox, Window, ColourPicker, OS, Wimp;
 
 CONST Class_ColourDbox = Toolbox_Class: 0x829c0;
 

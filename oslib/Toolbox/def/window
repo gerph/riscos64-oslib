@@ -3,7 +3,7 @@ TITLE Window;
 AUTHOR "Jonathan Coxhead, Acorn Computers Ltd; Simon Middleton,
       Uniqueway Ltd";
 
-NEEDS Toolbox, KeyboardShortcut, Gadget;
+NEEDS Toolbox, KeyboardShortcut, Gadget, OS, Wimp;
 
 CONST Class_Window = Toolbox_Class: 0x82880;
 

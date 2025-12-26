@@ -6,12 +6,12 @@ NEEDS OS;
 TYPE
    PathUtilsEnumeratePath_Flags = .Bits;
 CONST
-   PathUtilsEnumeratePathFlags_AllPathComponents = PathUtils_EnumeratePathFlags: 0x1;
+   PathUtilsEnumeratePathFlags_AllPathComponents = PathUtilsEnumeratePath_Flags: 0x1;
 
 TYPE
    PathUtilsJoinPath_Flags = .Bits;
 CONST
-   PathUtilsJoinPathFlags_Append = PathUtils_JoinPathFlags: 0x1 "Set for appending, clear for prepending";
+   PathUtilsJoinPathFlags_Append = PathUtilsJoinPath_Flags: 0x1 "Set for appending, clear for prepending";
 
 TYPE
    PathUtilsRemovePath_Flags = .Bits;

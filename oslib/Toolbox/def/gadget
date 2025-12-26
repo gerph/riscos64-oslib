@@ -1,6 +1,6 @@
 TITLE Gadget;
 
-NEEDS Toolbox;
+NEEDS Toolbox, OS, Wimp;
 
 TYPE Gadget_Flags = .Bits;
 

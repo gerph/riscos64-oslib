@@ -846,7 +846,7 @@ TYPE
 
    Wimp_MessageSaveDesktopW =
       .Struct
-      (  OS_FW: file,
+      (  OS_F: file,
          Wimp_SaveDesktopFlags: flags
       ),
 
@@ -944,7 +944,7 @@ TYPE
 
    Wimp_FullMessageSaveDesktopW =
       .Struct: Wimp_MessageHeader
-      (  OS_FW: file,
+      (  OS_F: file,
          Wimp_SaveDesktopFlags: flags
       ), // note: there is no OS_F (8-bit) version.
 
@@ -1949,8 +1949,8 @@ TYPE
    Wimp_PlotIconFlags = .Bits;
 
 CONST
-   Wimp_PlotIconGivenSpriteArea = Wimp_PlotIcon: 0x1,
-   Wimp_PlotIconUnderPointer    = Wimp_PlotIcon: 0x2;
+   Wimp_PlotIconGivenSpriteArea = Wimp_PlotIconFlags: 0x1,
+   Wimp_PlotIconUnderPointer    = Wimp_PlotIconFlags: 0x2;
 
 SWI
    Wimp_PlotIcon =
@@ -2560,7 +2560,7 @@ SWI
       ENTRY
       (  R1 # 0x5C "Save some state to a desktop boot file. Uses 32-bit file handle.",
          R0 = Wimp_SaveDesktopFlags: flags,
-         R2 = OS_FW: file
+         R2 = OS_F: file
       ),
       EXIT
       (  R0 -> OS_Error: error,

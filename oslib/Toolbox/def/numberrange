@@ -63,10 +63,10 @@ SWI
          R1 = Toolbox_O: window,
          R2 # 834*,
          R3 = Toolbox_C: number_range,
-         R3 = .Int: lower_bound,
-         R4 = .Int: upper_bound,
-         R5 = .Int: step_size,
-         R6 = .Int: precision
+         R4 = .Int: lower_bound,
+         R5 = .Int: upper_bound,
+         R6 = .Int: step_size,
+         R7 = .Int: precision
    )  ),
    NumberRange_GetBounds =
    (  NUMBER 0x44EC6,

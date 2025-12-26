@@ -1,6 +1,6 @@
 TITLE Iconbar;
 
-NEEDS Toolbox;
+NEEDS Toolbox, Wimp, OS;
 
 CONST Class_Iconbar = Toolbox_Class: 0x82900;
 

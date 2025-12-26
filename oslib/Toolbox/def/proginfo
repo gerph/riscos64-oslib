@@ -1,6 +1,6 @@
 TITLE ProgInfo;
 
-NEEDS Toolbox, Window;
+NEEDS Toolbox, Window, OS;
 
 CONST Class_ProgInfo = Toolbox_Class: 0x82b40;
 
@@ -51,12 +51,12 @@ TYPE
       );
 
 CONST
-   Error_ProgInfoTasksActive        = .Bits: 0x0080B400,
-   Error_ProgInfoAllocFailed        = .Bits: 0x0080B401,
-   Error_ProgInfoShortBuffer        = .Bits: 0x0080B402,
-   Error_ProgInfoNoSuchTask         = .Bits: 0x0080B411,
-   Error_ProgInfoNoSuchMethod       = .Bits: 0x0080B412,
-   Error_ProgInfoNoSuchMiscOpMethod = .Bits: 0x0080B413;
+   Error_ProgInfoTasksActive        = .Bits: 0x0080B400,
+   Error_ProgInfoAllocFailed        = .Bits: 0x0080B401,
+   Error_ProgInfoShortBuffer        = .Bits: 0x0080B402,
+   Error_ProgInfoNoSuchTask         = .Bits: 0x0080B411,
+   Error_ProgInfoNoSuchMethod       = .Bits: 0x0080B412,
+   Error_ProgInfoNoSuchMiscOpMethod = .Bits: 0x0080B413;
 
 SWI
    ProgInfo_ClassSWI = (NUMBER 0x82B40*, ABSENT),

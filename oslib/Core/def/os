@@ -8,7 +8,7 @@ CONST
 TYPE
    OS_T              = .Int "Monotonic time",
    OS_F              = .Int "File handle (32bit)",
-   OS_Mode             "Mode number",
+   OS_Mode           = .Int "Mode number",
    OS_GCOL           = .Byte "Graphical colour, 6 or 8 bits",
    OS_Tint           = .Byte "Graphical tint",
    OS_Action         = .Byte "Graphical action",
@@ -1762,6 +1762,8 @@ SWI OS_DynamicArea = //RO3.5
       (NUMBER 0x66 "Performs operations on dynamic areas -
       see individual reason codes", ABSENT);
 
+TYPE OSDynamicAreaDomain_State = .Bits;
+
 CONST
    OSDynamicArea_AllocateArea = .Int: -1,
    OSDynamicArea_AllocateBase = .Ref .Data: -1;
@@ -1994,19 +1996,19 @@ CONST
 
 TYPE OSMemory_ControllerFlags = .Bits;
 CONST
-   OSMemory_ControllerNo                = OS_ControllerFlags: &F,
+   OSMemory_ControllerNo                = OSMemory_ControllerFlags: &F,
    OSMemory_ControllerNoShift           = .Int: 0,
-   OSMemory_ControllerType              = OS_ControllerFlags: &FFFFFFF0,
+   OSMemory_ControllerType              = OSMemory_ControllerFlags: &FFFFFFF0,
    OSMemory_ControllerTypeShift         = .Int: 8,
-   OSMemory_ControllerTypeEASI          = OS_ControllerFlags: 0,
-   OSMemory_ControllerTypeEASISpace     = OS_ControllerFlags: 1,
-   OSMemory_ControllerTypeVIDC1         = OS_ControllerFlags: 2,
-   OSMemory_ControllerTypeVIDC20        = OS_ControllerFlags: 3,
-   OSMemory_ControllerTypeSSpace        = OS_ControllerFlags: 4 "RISC OS 5",
-   OSMemory_ControllerTypeExtensionROMs = OS_ControllerFlags: 5 "RISC OS 5+",
-   OSMemory_ControllerTypePrimaryROM    = OS_ControllerFlags: 32 "RISC OS 6",
-   OSMemory_ControllerTypeIOMD          = OS_ControllerFlags: 33 "RISC OS 6",
-   OSMemory_ControllerTypeFDC37C665     = OS_ControllerFlags: 34 "RISC OS 6";
+   OSMemory_ControllerTypeEASI          = OSMemory_ControllerFlags: 0,
+   OSMemory_ControllerTypeEASISpace     = OSMemory_ControllerFlags: 1,
+   OSMemory_ControllerTypeVIDC1         = OSMemory_ControllerFlags: 2,
+   OSMemory_ControllerTypeVIDC20        = OSMemory_ControllerFlags: 3,
+   OSMemory_ControllerTypeSSpace        = OSMemory_ControllerFlags: 4 "RISC OS 5",
+   OSMemory_ControllerTypeExtensionROMs = OSMemory_ControllerFlags: 5 "RISC OS 5+",
+   OSMemory_ControllerTypePrimaryROM    = OSMemory_ControllerFlags: 32 "RISC OS 6",
+   OSMemory_ControllerTypeIOMD          = OSMemory_ControllerFlags: 33 "RISC OS 6",
+   OSMemory_ControllerTypeFDC37C665     = OSMemory_ControllerFlags: 34 "RISC OS 6";
 
 TYPE OSMemory_IOFlags = .Bits;
 CONST

@@ -1,6 +1,6 @@
 TITLE FontDbox;
 
-NEEDS Toolbox, Window;
+NEEDS Toolbox, Window, OS;
 
 CONST Class_FontDbox = Toolbox_Class: 0x82A00;
 

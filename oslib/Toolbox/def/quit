@@ -1,5 +1,7 @@
 TITLE Quit;
 
+NEEDS Toolbox, OS;
+
 CONST Class_Quit = Toolbox_Class: 0x82a90;
 
 CONST

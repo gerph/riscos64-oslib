@@ -1,6 +1,6 @@
 TITLE Draggable;
 
-NEEDS Toolbox, Window;
+NEEDS Toolbox, Window, Gadget, Wimp, OS;
 
 CONST Class_Draggable = Toolbox_Class: 640;
 

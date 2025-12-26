@@ -8,6 +8,12 @@ CONST
 TYPE
    OSSpriteOp_TransTab = .Struct (.Byte: c ...),
 
+   OSSpriteOp_ColourMapping =
+   .Struct
+   (  .Ref .Data: workspace,
+      .Ref .Asm: transfer_function
+   ),
+
    OSSpriteOp_Area =
    .Struct
    (  .Int: size, 
@@ -87,7 +93,7 @@ CONST
 
 TYPE OSSpriteOp_Action = OS_Action;
 CONST
-   //for PutSpriteScaled, PutSpriteTrfm (R5)
+   //for PutSpriteScaled, PutSpriteTrfm (R5)
    OSSpriteOp_UseMask          = OSSpriteOp_Action: 0b1000,
    OSSpriteOp_UsePalette       = OSSpriteOp_Action: 0b10000 "RISC OS 3.5+",
    OSSpriteOp_GivenWideEntries = OSSpriteOp_Action: 0b100000 "RISC OS 3.6+",
@@ -488,7 +494,7 @@ SWI
          R2 = OSSpriteOp_Id: id,
          R3 = .Int: x,
          R4 = .Int: y,
-         R5 = Bool: solid)),
+         R5 = .Bool: solid)),
 
    OSSpriteOp_InsertColumn = (NUMBER 0x2E, ENTRY (R0 # 45 "Inserts column",
          R0 | OSSpriteOp_Flags: flags,

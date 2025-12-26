@@ -3,7 +3,7 @@ TITLE WindowSupportExternal;
 AUTHOR "Simon Middleton, Uniqueway Ltd; Jonathan Coxhead, Acorn
       Computers Ltd";
 
-NEEDS OS, Toolbox, Window, Gadget;
+NEEDS OS, Toolbox, Window, Gadget, Wimp;
 
 CONST
    // reason codes (in r2) to the gadget hander swi

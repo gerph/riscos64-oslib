@@ -1,6 +1,6 @@
 TITLE Scale;
 
-NEEDS Toolbox, Window;
+NEEDS Toolbox, Window, OS;
 
 CONST Class_Scale = Toolbox_Class: 0x82C00;
 
