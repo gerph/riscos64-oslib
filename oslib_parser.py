@@ -286,7 +286,7 @@ class DefMod(object):
         elif swi.name.startswith("UpCall_"):
             swi.name = "OS_" + swi.name
             swilist = self.upcalls
-        elif swi.name.endswith("V") and "_" not in swi.name:
+        elif swi.name.split("_")[0].endswith("V"):
             swi.name = "OS_CallVector_" + swi.name
             swilist = self.vectors
         else:
@@ -1454,6 +1454,139 @@ def create_nvram_constants(defmods, filename):
                                 'values': values,
                             })
 
+def create_rust(defmods, dirname):
+    os.makedirs(os.path.join(dirname, "oslib", "src"), exist_ok=True)
+
+    with open(os.path.join(dirname, "oslib", "Cargo.toml"), 'w') as fh:
+        fh.write('[package]\nname = "oslib"\nedition = "2021"\npublish = false\n')
+        with open("VersionNum", 'r') as v:
+            for line in v.readlines():
+                m = re.match(r'.*Module_MajorVersion\s+"0*([0-9]+)\.0*([0-9]+)".*', line)
+                if m:
+                    fh.write(f'version = "{m.group(1)}.{m.group(2)}.0"\n')
+
+    with open(os.path.join(dirname, "oslib", "src", "lib.rs"), 'w') as fh:
+        fh.write("//! # OSLib for RISC OS\n//!\n//! This provides access to the RISC OS API from Rust.\n//!\n")
+
+        for defmod in defmods:
+            # Super is a reserved word in Rust, but the defmod doesn't contain any useful SWIs so we can ignore it
+            if defmod.name != 'Super':
+                fh.write(f"pub mod {defmod.name.lower()};\n")
+
+    for defmod in defmods:
+        template = LocalTemplates('templates')
+        template.render_to_file('rust-api.rs.j2', os.path.join(dirname, "oslib", "src", defmod.name.lower() + ".rs"),
+                            {
+                                'defmod': defmod,
+                                'types': defmods.types,
+                                'magic_word': magic_word,
+                                'regex_match': regex_match,
+                                'contains_var_array': lambda dtype, array_only=False: contains_var_array(dtype, array_only, defmods.types),
+                                'contains_union': lambda dtype, imm_only=False: contains_union(dtype, 1 if imm_only else 2, defmods.types),
+                                'camel_to_snake': camel_to_snake,
+                                'snake_to_camel': snake_to_camel,
+                            })
+
+def regex_match(regex, text):
+    """
+    Return True if text matches a regex
+    """
+    return re.match(regex, str(text)) is not None
+
+def magic_word(text):
+    """
+    Convert a magic word string to a 32bit int
+    """
+    return ord(text[1]) | (ord(text[2]) << 8) | (ord(text[3]) << 16) | (ord(text[4]) << 24)
+
+def contains_var_array(dtype, array_only, types):
+    """
+    Return True if this data type contains a variable length array (possibly in a child struct), or (when array_only False) the last struct member is variable length
+    """
+    if isinstance(dtype, str):
+        if dtype[0] in ['.', '&']:
+            return False
+        elif dtype == 'Void':
+            return False
+        elif dtype in types:
+            return contains_var_array(types[dtype], array_only, types)
+    elif isinstance(dtype, Struct):
+        if len(dtype.members) > 0:
+            m = dtype.members[-1]
+            if isinstance(m.dtype, Array):
+                if m.dtype.nelements == '...':
+                    return True
+            elif contains_var_array(m.dtype, False, types) and not array_only:
+                return True
+        return False
+    elif isinstance(dtype, Union):
+        return False
+    elif isinstance(dtype, Array):
+        if dtype.nelements == '...':
+            return True
+        return False
+    elif isinstance(dtype, TypeRef):
+        return contains_var_array(dtype.dtype, array_only, types)
+
+    raise RuntimeError("Cannot determine type of %r" % (dtype,))
+
+def contains_union(dtype, depth, types):
+    """
+    Return True if this data type or (if depth == 2) a child contains a union
+    """
+    if isinstance(dtype, str):
+        if dtype[0] in ['.', '&']:
+            return False
+        elif dtype == 'Void':
+            return False
+        elif dtype in types:
+            return contains_union(types[dtype], depth, types)
+    elif isinstance(dtype, Struct):
+        if depth > 0:
+            for m in dtype.members:
+                if contains_union(m.dtype, 0 if depth == 1 else depth, types):
+                    return True
+        return False
+    elif isinstance(dtype, Union):
+        return True
+    elif isinstance(dtype, Array):
+        return contains_union(dtype.dtype, depth, types)
+    elif isinstance(dtype, TypeRef):
+        return contains_union(dtype.dtype, depth, types)
+
+    raise RuntimeError("Cannot determine type of %r" % (dtype,))
+
+def camel_to_snake(name):
+    """
+    Convert a Camel_CaseName to Snake_Case_Name
+    """
+    underscore = False
+    snake = ''
+    for i in range(len(name)):
+        if name[i] == '_':
+            underscore = True
+        elif name[i].isupper():
+            if underscore and name[i-1] not in ['_', ':'] and not name[i-1].isupper():
+                snake += '_'
+        snake += name[i]
+    return snake
+
+def snake_to_camel(name):
+    """
+    Convert a Snake_case_name to CamelCaseName
+    """
+    new_word = True
+    camel = ''
+    for i in range(len(name)):
+        if name[i] in ['_', ':']:
+            new_word = True
+        else:
+            if new_word:
+                camel += name[i].upper()
+            else:
+                camel += name[i]
+            new_word = False
+    return camel
 
 class TypeRef(object):
     """
@@ -1598,6 +1731,8 @@ def setup_argparse():
                         help="File to write the SWI conditions into")
     parser.add_argument('--create-message-details', action='store',
                         help="File to write the Wimp message details into")
+    parser.add_argument('--create-rust', action='store',
+                        help="Directory to write the rust into")
     parser.add_argument('--create-module-cmhg-template', action='store',
                         help="File to write a CMHG template for a C module into")
     parser.add_argument('--create-module-c-template', action='store',
@@ -1644,6 +1779,9 @@ def main():
         #    raise
         #except Exception as exc:
         #    print("  Failed %s: %s: %s" % (defmodfile, exc.__class__.__name__, exc))
+
+    if options.create_rust:
+        create_rust(defmods, options.create_rust)
 
     if options.swi_conditions:
         write_all_swi_conditions(defmods, options.swi_conditions)
