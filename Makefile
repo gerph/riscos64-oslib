@@ -54,6 +54,7 @@ targetted:
 
 all:
 	make liboslib.a
+	make rust
 
 shell: dockcross-linux-arm64
 	./dockcross-linux-arm64 bash
@@ -63,7 +64,7 @@ dockcross-linux-arm64:
 	chmod +x dockcross-linux-arm64
 
 clean:
-	-rm -f src/*.s src/*.o *.a
+	-rm -rf src/*.s src/*.o *.a rust
 
 .PHONY: srcs
 srcs: src/os.s
@@ -74,7 +75,7 @@ src/os.s: oslib_parser.py templates/aarch64-api.s.j2 oslib/Core/def/os
 ifeq (${CROSS_ROOT},)
 # If we're outside the docker container, re-run ourselves inside the container
 
-ifneq ($(filter-out all shell dockcross-linux-arm64 srcs clean,${MAKECMDGOALS}),)
+ifneq ($(filter-out all shell dockcross-linux-arm64 srcs clean rust,${MAKECMDGOALS}),)
 # The command wasn't one of our invocation commands above
 .PHONY: ${MAKECMDGOALS}
 ${MAKECMDGOALS}: dockcross-linux-arm64 srcs
@@ -119,3 +120,8 @@ liboslib.a: ${OBJS} headers
 	${AS} ${AFLAGS} -o $@ $?
 
 endif
+
+.PHONY: rust
+rust: oslib_parser.py templates/rust-api.rs.j2
+	python oslib_parser.py --create-rust rust oslib/*/def/*
+	(cd rust/oslib; cargo test)

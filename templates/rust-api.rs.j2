@@ -1,0 +1,1290 @@
+//! # OSLib Rust file for {{ defmod.title }}
+//!
+//! Functions are provided for all SWI calls.
+//! SWI arguments are passed to the function call, and SWI results are returned
+//! as multiple return values. Structs can be passed as inputs to a SWI call,
+//! either as a borrowed reference, or as a raw pointer. Structs returned from
+//! a SWI call are always returned as a raw pointer, so must be accessed from an
+//! unsafe block. This is because the lifetime of the data will depend on the
+//! SWI call, and cannot be safely described to Rust at compile time.
+//!
+//! All SWI calls use the X form of the SWI, and return a Result enum to allow
+//! idiomatic Rust error handling.
+//!
+//! Structs or unions can be created with new() or default().
+//!
+//! Structs with a variable length array as the last member are treated as Rust
+//! dynamically sized types. You cannot create one of these directly, but you
+//! can create a base type with a fixed size that can then be coerced to a
+//! reference to a dynamically sized type. In some cases, an iterator is
+//! provided to safely access the dynamically sized array.
+//!
+//! Unions that are embedded inside another struct can be safely accessed
+//! using provided methods. Reading a union member will first check that the
+//! appropriate struct flags are consistent with that member, and will return
+//! None otherwise. Writing to a union member via a mutable reference from the
+//! access function will set the appropriate flags to indicate that that union
+//! member is the only valid one now.
+//!
+//! # Examples
+//!
+//! ```
+//! # fn main() {
+//! // Create a window with no icons
+//! use oslib::wimp::*;
+//!
+//! let mut block = WimpWindowBase::<0>::new();
+//!
+//! // Set flags where the default value is not sufficient
+//! block.highlight_bg = WIMP_COLOUR_CREAM;
+//! block.title_flags = WIMP_ICON_VCENTRED | WIMP_ICON_RJUSTIFIED;
+//!
+//! let mut title: Vec<u8> = Vec::from(c"WindowTitle".to_bytes_with_nul());
+//! // Access union member, automatically setting the WIMP_ICON_INDIRECTED
+//! // and WIMP_ICON_TEXT title_flags
+//! block.title_data_indirected_text_mut().text = title.as_mut_ptr();
+//! block.title_data_indirected_text_mut().size = title.len() as i32;
+//! block.title_data_indirected_text_mut().validation = std::ptr::null();
+//!
+//! let window_handle = wimp_create_window(&block).unwrap();
+//! # }
+//! ```
+//!
+//! ```
+//! # fn main() {
+//! // Load buffer, e.g. from a file
+//! let mut buffer: Vec<u8> = [0_u8; 120].into();
+//!
+//! use oslib::wimp::*;
+//!
+//! // Obtain a reference of the correct type to the loaded data
+//! let block = WimpWindow::from_bytes(buffer.as_slice());
+//!
+//! // Display all the icons present in the window block
+//! for icon in block {
+//!   println!("Icon: {:#?}", icon);
+//! }
+//!
+//! let window_handle = wimp_create_window(block).unwrap();
+//! # }
+//! ```
+
+{%- for mod in defmod.needs %}
+#[allow(unused)]
+use crate::{{ mod|lower }}::*;
+{%- endfor %}
+
+{# Define information that is not present in the defmod files #}
+
+{# Define what determines when a union field is valid.
+   {'Enclosing struct':
+    {'Struct field that holds the union':
+     {'Union field':
+      ['Struct field that defined validity', 'Mask value for field, or None', 'Match value for field']}}}
+#}
+{% set union_discriminants = {'Alarm_MessageSet': {'time': {'utc': ['set_reason', None, 'ALARM_REASON_SET_UTC'],
+                                                            'local': ['set_reason', None, 'ALARM_REASON_SET_LOCAL']} },
+                              'ColourDbox_ActionAboutToBeShown': {'position': {'full': ['tag', None, 'TOOLBOX_POSITION_FULL'],
+                                                                               'top_left': ['tag', None, 'TOOLBOX_POSITION_TOP_LEFT']} },
+                              'ColourMenu_ActionAboutToBeShown': {'position': {'full': ['tag', None, 'TOOLBOX_POSITION_FULL'],
+                                                                               'top_left': ['tag', None, 'TOOLBOX_POSITION_TOP_LEFT']} },
+                              'DCS_ActionAboutToBeShown': {'position': {'full': ['tag', None, 'TOOLBOX_POSITION_FULL'],
+                                                                        'top_left': ['tag', None, 'TOOLBOX_POSITION_TOP_LEFT']} },
+                              'Draw_PathElement': {'data': {'end_path': ['tag', None, 'DRAW_END_PATH'],
+                                                            'continuation': ['tag', None, 'DRAW_CONTINUATION'],
+                                                            'move_to': ['tag', None, 'DRAW_MOVE_TO'],
+                                                            'special_move_to': ['tag', None, 'DRAW_SPECIAL_MOVE_TO'],
+                                                            'bezier_to': ['tag', None, 'DRAW_BEZIER_TO'],
+                                                            'gap_to': ['tag', None, 'DRAW_GAP_TO'],
+                                                            'line_to': ['tag', None, 'DRAW_LINE_TO']} },
+                              'DrawFile_Object': {'data': {'font_table': ['type', None, 'DRAWFILE_TYPE_FONT_TABLE'],
+                                                           'text': ['type', None, 'DRAWFILE_TYPE_TEXT'],
+                                                           'path': ['type', None, 'DRAWFILE_TYPE_PATH'],
+                                                           'sprite': ['type', None, 'DRAWFILE_TYPE_SPRITE'],
+                                                           'group': ['type', None, 'DRAWFILE_TYPE_GROUP'],
+                                                           'tagged': ['type', None, 'DRAWFILE_TYPE_TAGGED'],
+                                                           'text_column': ['type', None, 'DRAWFILE_TYPE_TEXT_COLUMN'],
+                                                           'text_area': ['type', None, 'DRAWFILE_TYPE_TEXT_AREA'],
+                                                           'options': ['type', None, 'DRAWFILE_TYPE_OPTIONS'],
+                                                           'trfm_text': ['type', None, 'DRAWFILE_TYPE_TRFM_TEXT'],
+                                                           'trfm_sprite': ['type', None, 'DRAWFILE_TYPE_TRFM_SPRITE'],
+                                                           'jpeg': ['type', None, 'DRAWFILE_TYPE_JPEG']} },
+                              'Filer_MessageAction': {'data': {'destination_dir_name': ['operation', None, 0, 1, 6, 7],
+                                                               'access': ['operation', None, 3],
+                                                               'file_type': ['operation', None, 4],
+                                                               'find_leaf': ['operation', None, 9]} },
+                              'FileInfo_ActionAboutToBeShown': {'position': {'full': ['tag', None, 'TOOLBOX_POSITION_FULL'],
+                                                                             'top_left': ['tag', None, 'TOOLBOX_POSITION_TOP_LEFT']} },
+                              'FontDbox_ActionAboutToBeShown': {'position': {'full': ['tag', None, 'TOOLBOX_POSITION_FULL'],
+                                                                             'top_left': ['tag', None, 'TOOLBOX_POSITION_TOP_LEFT']} },
+                              'FontMenu_ActionAboutToBeShown': {'position': {'full': ['tag', None, 'TOOLBOX_POSITION_FULL'],
+                                                                             'top_left': ['tag', None, 'TOOLBOX_POSITION_TOP_LEFT']} },
+                              'Iconbar_ActionAboutToBeShown': {'position': {'full': ['tag', None, 'TOOLBOX_POSITION_FULL'],
+                                                                            'top_left': ['tag', None, 'TOOLBOX_POSITION_TOP_LEFT']} },
+                              'Menu_ActionAboutToBeShown': {'position': {'full': ['tag', None, 'TOOLBOX_POSITION_FULL'],
+                                                                         'top_left': ['tag', None, 'TOOLBOX_POSITION_TOP_LEFT']} },
+                              'PrintDbox_ActionAboutToBeShown': {'position': {'full': ['tag', None, 'TOOLBOX_POSITION_FULL'],
+                                                                              'top_left': ['tag', None, 'TOOLBOX_POSITION_TOP_LEFT']} },
+                              'PrintDbox_ActionSetupAboutToBeShown': {'position': {'full': ['tag', None, 'TOOLBOX_POSITION_FULL'],
+                                                                                   'top_left': ['tag', None, 'TOOLBOX_POSITION_TOP_LEFT']} },
+                              'ProgInfo_ActionAboutToBeShown': {'position': {'full': ['tag', None, 'TOOLBOX_POSITION_FULL'],
+                                                                             'top_left': ['tag', None, 'TOOLBOX_POSITION_TOP_LEFT']} },
+                              'Quit_ActionAboutToBeShown': {'position': {'full': ['tag', None, 'TOOLBOX_POSITION_FULL'],
+                                                                         'top_left': ['tag', None, 'TOOLBOX_POSITION_TOP_LEFT']} },
+                              'SaveAs_ActionAboutToBeShown': {'position': {'full': ['tag', None, 'TOOLBOX_POSITION_FULL'],
+                                                                           'top_left': ['tag', None, 'TOOLBOX_POSITION_TOP_LEFT']} },
+                              'Scale_ActionAboutToBeShown': {'position': {'full': ['tag', None, 'TOOLBOX_POSITION_FULL'],
+                                                                          'top_left': ['tag', None, 'TOOLBOX_POSITION_TOP_LEFT']} },
+                              'Toolbox_Action': {'data': {'error': ['action_no', None, 'ACTION_ERROR'],
+                                                          'created': ['action_no', None, 'ACTION_OBJECT_AUTO_CREATED']} },
+                              'Wimp_Icon': {'data': {'text': ['flags', 'WIMP_ICON_TEXT | WIMP_ICON_SPRITE | WIMP_ICON_INDIRECTED', 'WIMP_ICON_TEXT'],
+                                                     'sprite': ['flags', 'WIMP_ICON_TEXT | WIMP_ICON_SPRITE | WIMP_ICON_INDIRECTED', 'WIMP_ICON_SPRITE'],
+                                                     'text_and_sprite': ['flags', 'WIMP_ICON_TEXT | WIMP_ICON_SPRITE | WIMP_ICON_INDIRECTED', 'WIMP_ICON_TEXT | WIMP_ICON_SPRITE'],
+                                                     'indirected_text': ['flags', 'WIMP_ICON_TEXT | WIMP_ICON_SPRITE | WIMP_ICON_INDIRECTED', 'WIMP_ICON_INDIRECTED | WIMP_ICON_TEXT'],
+                                                     'indirected_sprite': ['flags', 'WIMP_ICON_TEXT | WIMP_ICON_SPRITE | WIMP_ICON_INDIRECTED', 'WIMP_ICON_INDIRECTED | WIMP_ICON_SPRITE'],
+                                                     'indirected_text_and_sprite': ['flags', 'WIMP_ICON_TEXT | WIMP_ICON_SPRITE | WIMP_ICON_INDIRECTED', 'WIMP_ICON_INDIRECTED | WIMP_ICON_TEXT | WIMP_ICON_SPRITE']} },
+                              'Wimp_MenuEntry': {'data': {'text': ['icon_flags', 'WIMP_ICON_TEXT | WIMP_ICON_SPRITE | WIMP_ICON_INDIRECTED', 'WIMP_ICON_TEXT'],
+                                                          'sprite': ['icon_flags', 'WIMP_ICON_TEXT | WIMP_ICON_SPRITE | WIMP_ICON_INDIRECTED', 'WIMP_ICON_SPRITE'],
+                                                          'text_and_sprite': ['icon_flags', 'WIMP_ICON_TEXT | WIMP_ICON_SPRITE | WIMP_ICON_INDIRECTED', 'WIMP_ICON_TEXT | WIMP_ICON_SPRITE'],
+                                                          'indirected_text': ['icon_flags', 'WIMP_ICON_TEXT | WIMP_ICON_SPRITE | WIMP_ICON_INDIRECTED', 'WIMP_ICON_INDIRECTED | WIMP_ICON_TEXT'],
+                                                          'indirected_sprite': ['icon_flags', 'WIMP_ICON_TEXT | WIMP_ICON_SPRITE | WIMP_ICON_INDIRECTED', 'WIMP_ICON_INDIRECTED | WIMP_ICON_SPRITE'],
+                                                          'indirected_text_and_sprite': ['icon_flags', 'WIMP_ICON_TEXT | WIMP_ICON_SPRITE | WIMP_ICON_INDIRECTED', 'WIMP_ICON_INDIRECTED | WIMP_ICON_TEXT | WIMP_ICON_SPRITE']} },
+                              'Wimp_Window': {'title_data': {'text': ['title_flags', 'WIMP_ICON_TEXT | WIMP_ICON_SPRITE | WIMP_ICON_INDIRECTED', 'WIMP_ICON_TEXT'],
+                                                             'sprite': ['title_flags', 'WIMP_ICON_TEXT | WIMP_ICON_SPRITE | WIMP_ICON_INDIRECTED', 'WIMP_ICON_SPRITE'],
+                                                             'text_and_sprite': ['title_flags', 'WIMP_ICON_TEXT | WIMP_ICON_SPRITE | WIMP_ICON_INDIRECTED', 'WIMP_ICON_TEXT | WIMP_ICON_SPRITE'],
+                                                             'indirected_text': ['title_flags', 'WIMP_ICON_TEXT | WIMP_ICON_SPRITE | WIMP_ICON_INDIRECTED', 'WIMP_ICON_INDIRECTED | WIMP_ICON_TEXT'],
+                                                             'indirected_sprite': ['title_flags', 'WIMP_ICON_TEXT | WIMP_ICON_SPRITE | WIMP_ICON_INDIRECTED', 'WIMP_ICON_INDIRECTED | WIMP_ICON_SPRITE'],
+                                                             'indirected_text_and_sprite': ['title_flags', 'WIMP_ICON_TEXT | WIMP_ICON_SPRITE | WIMP_ICON_INDIRECTED', 'WIMP_ICON_INDIRECTED | WIMP_ICON_TEXT | WIMP_ICON_SPRITE']} },
+                              'Wimp_WindowInfo': {'title_data': {'text': ['title_flags', 'WIMP_ICON_TEXT | WIMP_ICON_SPRITE | WIMP_ICON_INDIRECTED', 'WIMP_ICON_TEXT'],
+                                                                 'sprite': ['title_flags', 'WIMP_ICON_TEXT | WIMP_ICON_SPRITE | WIMP_ICON_INDIRECTED', 'WIMP_ICON_SPRITE'],
+                                                                 'text_and_sprite': ['title_flags', 'WIMP_ICON_TEXT | WIMP_ICON_SPRITE | WIMP_ICON_INDIRECTED', 'WIMP_ICON_TEXT | WIMP_ICON_SPRITE'],
+                                                                 'indirected_text': ['title_flags', 'WIMP_ICON_TEXT | WIMP_ICON_SPRITE | WIMP_ICON_INDIRECTED', 'WIMP_ICON_INDIRECTED | WIMP_ICON_TEXT'],
+                                                                 'indirected_sprite': ['title_flags', 'WIMP_ICON_TEXT | WIMP_ICON_SPRITE | WIMP_ICON_INDIRECTED', 'WIMP_ICON_INDIRECTED | WIMP_ICON_SPRITE'],
+                                                                 'indirected_text_and_sprite': ['title_flags', 'WIMP_ICON_TEXT | WIMP_ICON_SPRITE | WIMP_ICON_INDIRECTED', 'WIMP_ICON_INDIRECTED | WIMP_ICON_TEXT | WIMP_ICON_SPRITE']} },
+                              'Window_ActionAboutToBeShown': {'position': {'full': ['tag', None, 'TOOLBOX_POSITION_FULL'],
+                                                                           'top_left': ['tag', None, 'TOOLBOX_POSITION_TOP_LEFT']} } } %}
+
+{# Define what determines the number of entries in a variable length struct.
+   {'Enclosing struct':
+    {'field': 'Struct field that holds the array',
+     'count': 'Field name that contains a count of the number of entries in the array',
+     'last': ['field in array that defines the last item', 'Mask value for field', 'Match value for field']}}
+#}
+{% set iterators = {'Wimp_Window': {'field': 'icons', 'count': 'icon_count'},
+                    'Wimp_WindowInfo': {'field': 'icons', 'count': 'icon_count'},
+                    'Wimp_Menu': {'field': 'entries', 'last': ['menu_flags', 'WIMP_MENU_LAST', 'WIMP_MENU_LAST']} } %}
+
+
+{# Collate all the anonymous structs and unions found defined as part of other structs #}
+{% set anonymous_types = {} %}
+
+{# Convert a data type into a rust type #}
+{%- macro data_type(t, anon_name='', ptr_mut=False, thin_ptr=True) -%}
+  {%- if t.__class__.__name__ == 'str' -%}
+    {%- if t[0] == '&' -%}
+*{{ "mut" if ptr_mut else "const" }} {{ data_type(t[1:], anon_name, ptr_mut, thin_ptr) }}
+    {%- elif t in ['.Int', '.Any'] -%}
+i32
+    {%- elif t == '.Bool' -%}
+bool
+    {%- elif t == '.Float' -%}
+f64
+    {%- elif t in ['.Bits', '.flags'] -%}
+u32
+    {%- elif t in ['.Short'] -%}
+i16
+    {%- elif t in ['.Byte', '.Data'] -%}
+u8
+    {%- elif t in ['.String', '.Char'] -%}
+u8
+    {%- elif t in ['.Asm'] -%}
+*const std::os::raw::c_void
+    {%- elif t in ['Void'] -%}
+std::os::raw::c_void
+    {%- elif t[-4:] == 'Base' -%}
+{{ type_name(t) }}<0>
+    {%- elif contains_var_array(t) and thin_ptr -%}
+{{ type_name(t) }}Base<0>
+    {%- else -%}
+{{ type_name(t) }}
+    {%- endif -%}
+  {%- elif t.__class__.__name__ == 'Array' -%}
+    {%- if t.nelements == '...' -%}
+{{ data_type(t.dtype, anon_name, ptr_mut, True) }}
+    {%- elif t.nelements|int(-1) != -1 -%}
+[{{ data_type(t.dtype, anon_name, ptr_mut, True) }}; {{ t.nelements }}]
+    {%- else -%}
+[{{ data_type(t.dtype, anon_name, ptr_mut, True) }}; {{ constant_name(t.nelements) }} as usize]
+    {%- endif -%}
+  {%- elif t.__class__.__name__ in ['Struct', 'Union'] -%}
+    {%- set x = anonymous_types.__setitem__(anon_name, t) -%}
+    {%- if contains_var_array(t) and thin_ptr -%}
+{{ type_name(anon_name) }}Base<0>
+    {%- else -%}
+{{ type_name(anon_name) }}
+    {%- endif -%}
+  {%- else -%}
+    {%- include "Unknown data type " + t -%}
+  {%- endif -%}
+{%- endmacro -%}
+
+{%- macro base_type(t) -%}
+  {%- if t[0] == '.' -%}
+{{ t }}
+  {%- elif t[0] == '&' -%}
+&{{ base_type(t[1:]) }}
+  {%- elif t in types -%}
+    {%- if types[t].__class__.__name__ == 'str' -%}
+{{ base_type(types[t]) }}
+    {%- elif types[t].__class__.__name__ == 'TypeRef' -%}
+{{ base_type(types[t].dtype) }}
+    {%- else -%}
+{{ types[t].__class__.__name__ }}
+    {%- endif -%}
+  {%- else -%}
+
+  {%- endif -%}
+{%- endmacro -%}
+
+{# Escape any Rust reserved words in a struct/union field name #}
+{%- macro field_name(e) -%}
+  {%- if e in ['type', 'box', 'ref', 'final', 'match', 'try', 'fn', 'super'] -%}
+r#{{ e }}
+  {%- else -%}
+{{ e }}
+  {%- endif -%}
+{%- endmacro -%}
+
+{# Converts constants to uppercase snake (but preserve numerical constants) #}
+{%- macro constant_name(name) -%}
+  {%- if regex_match('-?[0-9]+', name) -%}
+{{ name }}
+  {%- else -%}
+{{ camel_to_snake(name)|upper }}
+  {%- endif -%}
+{%- endmacro -%}
+
+{# Converts SWIs to lowercase snake #}
+{%- macro swi_name(name) -%}
+{{ camel_to_snake(name)|lower }}
+{%- endmacro -%}
+
+{# Converts type names to camel case #}
+{%- macro type_name(name) -%}
+{{ snake_to_camel(name) }}
+{%- endmacro -%}
+
+{# Find the data type of a member that is an array #}
+{%- macro array_dtype(s, name, member) -%}
+  {%- for m in s.members -%}
+    {%- if m.name == member -%}
+{{ data_type(m.dtype.dtype, name + "_member_" + m.name) }}
+    {%- endif -%}
+  {%- endfor -%}
+{%- endmacro -%}
+
+{# Declare a Rust struct #}
+{%- macro struct_decl(name, s) -%}
+  {%- if not (contains_union(s) or contains_var_array(s)) %}
+#[derive(Clone, PartialEq)]
+  {%- endif %}
+#[repr(C)]
+pub struct {{ type_name(name) }}{% if contains_var_array(s) %}T<T: ?Sized>{% endif %} {
+  {%- for member in s.members %}
+    {%- if contains_var_array(s) and loop.last %}
+    pub {{ field_name(member.name) }}: T,
+    {%- else %}
+    pub {{ field_name(member.name) }}: {{ data_type(member.dtype, name + "_member_" + member.name, False, True) }},
+    {%- endif %}
+  {%- endfor %}
+}
+
+  {%- if contains_var_array(s) %}
+
+/// Base type with a fixed size
+    {%- if contains_var_array(s, True) %}
+pub type {{ type_name(name) }}Base<const N: usize> = {{ type_name(name) }}T<[{{ data_type(s.members[-1].dtype, name + "_member_" + s.members[-1].name) }}; N]>;
+    {%- else %}
+pub type {{ type_name(name) }}Base<const N: usize> = {{ type_name(name) }}T<{{ data_type(s.members[-1].dtype, name + "_member_" + s.members[-1].name, False, False) }}Base<N>>;
+    {%- endif %}
+
+/// Dynamically sized type
+    {%- if contains_var_array(s, True) %}
+pub type {{ type_name(name) }} = {{ type_name(name) }}T<[{{ data_type(s.members[-1].dtype, name + "_member_" + s.members[-1].name) }}]>;
+    {%- else %}
+pub type {{ type_name(name) }} = {{ type_name(name) }}T<{{ data_type(s.members[-1].dtype, name + "_member_" + s.members[-1].name, False, False) }}>;
+    {%- endif %}
+
+/// Allow conversion of references of any size to a fat raw pointer
+impl<const N: usize> From<&{{ type_name(name) }}Base<N>> for *const {{ type_name(name) }} {
+    fn from(ptr: &{{ type_name(name) }}Base<N>) -> Self {
+        let ptr: &{{ type_name(name) }} = ptr;
+        ptr
+    }
+}
+
+/// Allow conversion of references of any size to a fat raw pointer
+impl<const N: usize> From<&mut {{ type_name(name) }}Base<N>> for *mut {{ type_name(name) }} {
+    fn from(ptr: &mut {{ type_name(name) }}Base<N>) -> Self {
+        let ptr: &mut {{ type_name(name) }} = ptr;
+        ptr
+    }
+}
+
+/// Allow conversion of references of dynamically sized type to a fat raw pointer
+impl From<&{{ type_name(name) }}> for *const {{ type_name(name) }} {
+    fn from(ptr: &{{ type_name(name) }}) -> Self {
+        ptr
+    }
+}
+
+/// Allow conversion of references of dynamically sized type to a fat raw pointer
+impl From<&mut {{ type_name(name) }}> for *mut {{ type_name(name) }} {
+    fn from(ptr: &mut {{ type_name(name) }}) -> Self {
+        ptr
+    }
+}
+  {%- endif %}
+  {%- if name in union_discriminants %}
+
+impl{% if contains_var_array(s) %}<T: ?Sized>{% endif %} {{ type_name(name) }}{% if contains_var_array(s) %}T<T>{% endif %} {
+    {%- for struct_member in union_discriminants[name] %}
+      {%- for union_member in union_discriminants[name][struct_member] %}
+        {%- set ns = namespace(dtype='', anon='') %}
+        {%- for s_member in s.members %}
+          {%- if s_member.name == struct_member %}
+            {%- if s_member.dtype.__class__.__name__ == 'str' %}
+              {%- for u_member in defmod.types[s_member.dtype].members %}
+                {%- if u_member.name == union_member %}
+                  {%- set ns.dtype = u_member.dtype %}
+                  {%- set ns.anon = s_member.dtype + '_member_' + union_member %}
+                {%- endif %}
+              {%- endfor %}
+            {%- else %}
+              {%- for u_member in s_member.dtype.members %}
+                {%- if u_member.name == union_member %}
+                  {%- set ns.dtype = u_member.dtype %}
+                  {%- set ns.anon = name + '_member_' + struct_member + '_member_' + union_member %}
+                {%- endif %}
+              {%- endfor %}
+            {%- endif %}
+          {%- endif %}
+        {%- endfor %}
+
+    /// Safe read accessor for union member
+    pub fn {{ struct_member }}_{{ union_member }}(&self) -> Option<&{{ data_type(ns.dtype, ns.anon) }}> {
+      if (self.r#{{ union_discriminants[name][struct_member][union_member][0] }}{% if union_discriminants[name][struct_member][union_member][1] %} & ({{ union_discriminants[name][struct_member][union_member][1] }}){% endif %}) == ({{ union_discriminants[name][struct_member][union_member][2] }}) {
+        unsafe { Some(&*self.{{ struct_member }}.{{ union_member }}) }
+      } else {
+        None
+      }
+    }
+
+    /// Safe write accessor for union member. Sets the descriminant to the variant accessed
+    pub fn {{ struct_member }}_{{ union_member }}_mut(&mut self) -> &mut {{ data_type(ns.dtype, ns.anon) }} {
+        {%- if union_discriminants[name][struct_member][union_member][1] %}
+      self.{{ union_discriminants[name][struct_member][union_member][0] }} &= !({{ union_discriminants[name][struct_member][union_member][1] }});
+      self.{{ union_discriminants[name][struct_member][union_member][0] }} |= {{ union_discriminants[name][struct_member][union_member][2] }};
+        {%- else %}
+      self.r#{{ union_discriminants[name][struct_member][union_member][0] }} = {{ union_discriminants[name][struct_member][union_member][2] }};
+        {%- endif %}
+      unsafe { &mut *self.{{ struct_member }}.{{ union_member }} }
+    }
+      {%- endfor %}
+    {%- endfor %}
+}
+  {%- elif contains_union(s, True) %}
+// Warning: Union discriminant definition not found for struct {{name}}, therefore safe accessors not created
+  {%- endif %}
+
+impl{% if contains_var_array(s) %}<const N: usize>{% endif %} {{ type_name(name) }}{% if contains_var_array(s) %}Base<N>{% endif %} {
+    pub fn new() -> Self {
+        Default::default()
+    }
+}
+  {%- if name in iterators %}
+
+impl<const N: usize> {{ type_name(name) }}Base<N> {
+    pub fn iter<'a>(&'a self) -> {{ type_name(name) }}Iter<'a> {
+        let s: &{{ type_name(name) }} = self;
+        s.into_iter()
+    }
+
+    pub fn iter_mut<'a>(&'a mut self) -> {{ type_name(name) }}IterMut<'a> {
+        let s: &mut {{ type_name(name) }} = self;
+        s.into_iter()
+    }
+}
+
+impl {{ type_name(name) }} {
+    pub fn iter<'a>(&'a self) -> {{ type_name(name) }}Iter<'a> {
+        let s: &{{ type_name(name) }} = self;
+        s.into_iter()
+    }
+
+    pub fn iter_mut<'a>(&'a mut self) -> {{ type_name(name) }}IterMut<'a> {
+        let s: &mut {{ type_name(name) }} = self;
+        s.into_iter()
+    }
+}
+
+#[derive(Clone)]
+pub struct {{ type_name(name) }}Iter<'a> {
+    iter: std::slice::Iter<'a, {{ array_dtype(defmod.types[name], name, iterators[name]['field']) }}>,
+    {%- if 'count' in iterators[name] %}
+    remaining: usize,
+    {%- elif 'last' in iterators[name] %}
+    last: bool,
+    {%- endif %}
+}
+
+pub struct {{ type_name(name) }}IterMut<'a> {
+    iter: std::slice::IterMut<'a, {{ array_dtype(defmod.types[name], name, iterators[name]['field']) }}>,
+    {%- if 'count' in iterators[name] %}
+    remaining: usize,
+    {%- elif 'last' in iterators[name] %}
+    last: bool,
+    {%- endif %}
+}
+
+impl<'a> Iterator for {{ type_name(name) }}Iter<'a> {
+    type Item = &'a {{ array_dtype(defmod.types[name], name, iterators[name]['field']) }};
+    fn next(&mut self) -> Option<Self::Item> {
+    {%- if 'count' in iterators[name] %}
+        if self.remaining > 0 {
+            self.remaining -= 1;
+            self.iter.next()
+        } else {
+            None
+        }
+    {%- elif 'last' in iterators[name] %}
+        if self.last {
+            None
+        } else {
+            let next = self.iter.next();
+            if let Some(ref next) = next {
+                self.last = (next.{{ iterators[name]['last'][0] }} & {{ iterators[name]['last'][1] }}) == {{ iterators[name]['last'][2] }};
+            }
+            next
+        }
+    {%- endif %}
+    }
+}
+
+impl<'a> Iterator for {{ type_name(name) }}IterMut<'a> {
+    type Item = &'a mut {{ array_dtype(defmod.types[name], name, iterators[name]['field']) }};
+    fn next(&mut self) -> Option<Self::Item> {
+    {%- if 'count' in iterators[name] %}
+        if self.remaining > 0 {
+            self.remaining -= 1;
+            self.iter.next()
+        } else {
+            None
+        }
+    {%- elif 'last' in iterators[name] %}
+        if self.last {
+            None
+        } else {
+            let next = self.iter.next();
+            if let Some(ref next) = next {
+                self.last = (next.{{ iterators[name]['last'][0] }} & {{ iterators[name]['last'][1] }}) == {{ iterators[name]['last'][2] }};
+            }
+            next
+        }
+    {%- endif %}
+    }
+}
+
+impl<'a> IntoIterator for &'a {{ type_name(name) }} {
+    type Item = &'a {{ array_dtype(defmod.types[name], name, iterators[name]['field']) }};
+    type IntoIter = {{ type_name(name) }}Iter<'a>;
+
+    fn into_iter(self) -> Self::IntoIter {
+    {%- if 'count' in iterators[name] %}
+        let remaining = self.{{ iterators[name]['field'] }}.len();
+    {%- endif %}
+        {{ type_name(name) }}Iter {
+            iter: self.{{ iterators[name]['field'] }}.iter(),
+    {%- if 'count' in iterators[name] %}
+            remaining,
+    {%- elif 'last' in iterators[name] %}
+            last: false,
+    {%- endif %}
+        }
+    }
+}
+
+impl<'a> IntoIterator for &'a mut {{ type_name(name) }} {
+    type Item = &'a mut {{ array_dtype(defmod.types[name], name, iterators[name]['field']) }};
+    type IntoIter = {{ type_name(name) }}IterMut<'a>;
+
+    fn into_iter(self) -> Self::IntoIter {
+    {%- if 'count' in iterators[name] %}
+        let remaining = self.{{ iterators[name]['field'] }}.len();
+    {%- endif %}
+        {{ type_name(name) }}IterMut {
+            iter: self.{{ iterators[name]['field'] }}.iter_mut(),
+    {%- if 'count' in iterators[name] %}
+            remaining,
+    {%- elif 'last' in iterators[name] %}
+            last: false,
+    {%- endif %}
+        }
+    }
+}
+
+impl std::fmt::Debug for {{ type_name(name) }}Iter<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_list().entries(self.clone()).finish()
+    }
+}
+  {%- elif contains_var_array(s, True) %}
+// Warning: Iterator definition not found for {{ name }}
+  {%- endif %}
+  {%- if contains_var_array(s) %}
+
+impl<const N: usize> std::fmt::Debug for {{ type_name(name) }}Base<N> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("{{ type_name(name) }}")
+  {%- for m in s.members %}
+    {%- if name in union_discriminants and m.name in union_discriminants[name] %}
+      {%- if m.dtype.__class__.__name__ == 'str' %}
+        {%- for u_member in defmod.types[m.dtype].members %}
+          {%- if u_member.name in union_discriminants[name][m.name] %}
+         .field("{{ m.name }}_{{ u_member.name }}", &self.{{ m.name }}_{{ u_member.name }}())
+          {%- else %}
+         .field("{{ m.name }}_{{ u_member.name }}", &None::<bool>)
+          {%- endif %}
+        {%- endfor %}
+      {%- else %}
+        {%- for u_member in m.dtype.members %}
+          {%- if u_member.name in union_discriminants[name][m.name] %}
+         .field("{{ m.name }}_{{ u_member.name }}", &self.{{ m.name }}_{{ u_member.name }}())
+          {%- else %}
+         .field("{{ m.name }}_{{ u_member.name }}", &None::<bool>)
+          {%- endif %}
+        {%- endfor %}
+      {%- endif %}
+    {%- elif name in iterators and m.dtype.__class__.__name__ == "Array" %}
+         // Call iterator so that we don't display invalid entries
+         .field("{{ m.name }}", &self.iter())
+    {%- else %}
+         .field("{{ m.name }}", &self.{{ field_name(m.name) }})
+    {%- endif %}
+  {%- endfor %}
+         .finish()
+    }
+}
+  {%- endif %}
+
+impl std::fmt::Debug for {{ type_name(name) }} {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("{{ type_name(name) }}")
+  {%- for m in s.members %}
+    {%- if name in union_discriminants and m.name in union_discriminants[name] %}
+      {%- if m.dtype.__class__.__name__ == 'str' %}
+        {%- for u_member in defmod.types[m.dtype].members %}
+          {%- if u_member.name in union_discriminants[name][m.name] %}
+         .field("{{ m.name }}_{{ u_member.name }}", &self.{{ m.name }}_{{ u_member.name }}())
+          {%- else %}
+         .field("{{ m.name }}_{{ u_member.name }}", &None::<bool>)
+          {%- endif %}
+        {%- endfor %}
+      {%- else %}
+        {%- for u_member in m.dtype.members %}
+          {%- if u_member.name in union_discriminants[name][m.name] %}
+         .field("{{ m.name }}_{{ u_member.name }}", &self.{{ m.name }}_{{ u_member.name }}())
+          {%- else %}
+         .field("{{ m.name }}_{{ u_member.name }}", &None::<bool>)
+          {%- endif %}
+        {%- endfor %}
+      {%- endif %}
+    {%- elif name in iterators and m.dtype.__class__.__name__ == "Array" %}
+         // Call iterator so that we don't display invalid entries
+         .field("{{ m.name }}", &self.iter())
+    {%- elif contains_var_array(s, True) and loop.last %}
+         // Call iterator so that we don't display invalid entries
+         .field("{{ m.name }}", &self.{{ field_name(m.name) }}.iter())
+    {%- elif contains_var_array(s) and loop.last %}
+         .field("{{ m.name }}", &format_args!("{:?}", &self.{{ field_name(m.name) }}))
+    {%- else %}
+         .field("{{ m.name }}", &self.{{ field_name(m.name) }})
+    {%- endif %}
+  {%- endfor %}
+         .finish()
+    }
+}
+
+impl{% if contains_var_array(s) %}<const N: usize>{% endif %} std::default::Default for {{ type_name(name) }}{% if contains_var_array(s) %}Base<N>{% endif %} {
+    fn default() -> Self {
+        Self {
+    {%- for member in s.members %}
+      {%- if member.dtype.__class__.__name__ == "Array" %}
+        {%- if member.dtype.dtype[0] == '&' %}
+            {{ field_name(member.name) }}: std::array::from_fn(|_| 0 as {{ data_type(member.dtype.dtype) }}),
+        {%- else %}
+            {{ field_name(member.name) }}: std::array::from_fn(|_| std::default::Default::default()),
+        {%- endif %}
+      {%- elif member.dtype.__class__.__name__ == 'str' and (member.dtype[0] == '&' or member.dtype == '.Asm') %}
+            {{ field_name(member.name) }}: 0 as {{ data_type(member.dtype, '', False) }},
+      {%- elif contains_var_array(s, True) and loop.last %}
+            {{ field_name(member.name) }}: std::array::from_fn(|_| std::default::Default::default()),
+      {%- else %}
+            {{ field_name(member.name) }}: std::default::Default::default(),
+      {%- endif %}
+    {%- endfor %}
+        }
+    }
+}
+
+impl {{ type_name(name) }} {
+  {%- if contains_var_array(s) %}
+    /// Create a reference to a {{ type_name(name) }} from a byte array
+    pub fn from_bytes(bytes: &[u8]) -> &{{ type_name(name) }} {
+        let size0 = std::mem::size_of::<{{ type_name(name) }}Base<0>>();
+        let size1 = std::mem::size_of::<{{ type_name(name) }}Base<1>>();
+        assert!(bytes.len() >= size0);
+        let size = (bytes.len() - size0) / (size1 - size0); // Variable array size
+        let byte_ptr = bytes.as_ptr();
+        assert!(byte_ptr.align_offset(align_of::<{{ type_name(name) }}Base<0>>()) == 0);
+        let fat_ptr = std::ptr::slice_from_raw_parts(byte_ptr, size) as *const {{ type_name(name) }};
+        unsafe { &*fat_ptr }
+    }
+
+    /// Create a mutable reference to a {{ type_name(name) }} from a byte array
+    pub fn from_bytes_mut(bytes: &mut [u8]) -> &mut {{ type_name(name) }} {
+        let size0 = std::mem::size_of::<{{ type_name(name) }}Base<0>>();
+        let size1 = std::mem::size_of::<{{ type_name(name) }}Base<1>>();
+        assert!(bytes.len() >= size0);
+        let size = (bytes.len() - size0) / (size1 - size0); // Variable array size
+        let byte_ptr = bytes.as_mut_ptr();
+        assert!(byte_ptr.align_offset(align_of::<{{ type_name(name) }}Base<0>>()) == 0);
+        let fat_ptr = std::ptr::slice_from_raw_parts_mut(byte_ptr, size) as *mut {{ type_name(name) }};
+        unsafe { &mut *fat_ptr }
+    }
+
+    /// Convert a constant to a raw pointer of type {{ type_name(name) }}
+    /// Used when constants such as -1 have a special meaning rather than being an actual pointer
+    pub fn const_as_ptr(val: i32) -> *mut {{ type_name(name) }} {
+        std::ptr::slice_from_raw_parts(val as *const u8, 0) as *mut {{ type_name(name) }}
+    }
+  {%- else %}
+    /// Create a reference to a {{ type_name(name) }} from a byte array
+    pub fn from_bytes(bytes: &[u8]) -> &{{ type_name(name) }} {
+        unsafe {
+            assert!(bytes.len() >= std::mem::size_of::<{{ type_name(name) }}>());
+            let (misaligned, ret, _) = bytes.align_to::<{{ type_name(name) }}>();
+            assert!(misaligned.is_empty());
+            &ret[0]
+        }
+    }
+
+    /// Create a mutable reference to a {{ type_name(name) }} from a byte array
+    pub fn from_bytes_mut(bytes: &mut [u8]) -> &mut {{ type_name(name) }} {
+        unsafe {
+            assert!(bytes.len() >= std::mem::size_of::<{{ type_name(name) }}>());
+            let (misaligned, ret, _) = bytes.align_to_mut::<{{ type_name(name) }}>();
+            assert!(misaligned.is_empty());
+            &mut ret[0]
+        }
+    }
+  {%- endif %}
+}
+
+{%- endmacro -%}
+
+{# Declare a Rust union #}
+{%- macro union_decl(name, u) -%}
+#[repr(C)]
+pub union {{ type_name(name) }} {
+  {%- for m in u.members %}
+    pub {{ field_name(m.name) }}: std::mem::ManuallyDrop<{{ data_type(m.dtype, name + "_member_" + m.name) }}>,
+  {%- endfor %}
+}
+
+impl {{ type_name(name) }} {
+    pub fn new() -> Self {
+        Default::default()
+    }
+}
+
+impl std::fmt::Debug for {{ type_name(name) }} {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("{{ type_name(name) }}")
+  {%- for m in u.members %}
+         .field("{{ m.name }}", &"...")
+  {%- endfor %}
+         .finish()
+    }
+}
+
+impl std::default::Default for {{ type_name(name) }} {
+    fn default() -> Self {
+        Self {
+  {%- if u.members[0].dtype.__class__.__name__ == "Array" %}
+            {{ field_name(u.members[0].name) }}: std::mem::ManuallyDrop::new(std::array::from_fn(|_| std::default::Default::default())),
+  {%- elif u.members[0].dtype.__class__.__name__ == "str" and u.members[0].dtype[0] == '&' %}
+            {{ field_name(u.members[0].name) }}: std::mem::ManuallyDrop::new(0 as {{ data_type(u.members[0].dtype, '', False) }}),
+  {%- else %}
+            {{ field_name(u.members[0].name) }}: std::default::Default::default(),
+  {%- endif %}
+        }
+    }
+}
+{%- endmacro -%}
+
+
+// ############## {{ defmod.title }} types #################################
+
+{%- for name, t in defmod.types.items() %}
+  {%- if t.__class__.__name__ == 'str' %}
+    {%- if t[0] == '&' %}
+#[derive(Debug,PartialEq,Clone,Copy)]
+pub struct {{ type_name(name) }}({{ data_type(t) }});
+
+impl {{ type_name(name) }} {
+    pub const fn from_const(val: u32) -> Self {
+        Self(val as {{ data_type(t) }})
+    }
+}
+
+impl From<{{ type_name(name) }}> for {{ data_type(t) }} {
+    fn from(val: {{ type_name(name) }}) -> Self {
+        val.0
+    }
+}
+
+impl From<{{ type_name(name) }}> for *const std::os::raw::c_void {
+    fn from(val: {{ type_name(name) }}) -> Self {
+        val.0 as *const std::os::raw::c_void
+    }
+}
+
+impl std::default::Default for {{ type_name(name) }} {
+    fn default() -> Self {
+        Self(0 as {{ data_type(t) }})
+    }
+}
+
+    {%- elif t[0] == '.' %}
+
+#[derive(Default,PartialEq,Clone,Copy)]
+pub struct {{ type_name(name) }}({{ data_type(t) }});
+
+impl {{ type_name(name) }} {
+    pub const fn from_const(val: {{ data_type(t) }}) -> Self {
+        Self(val)
+    }
+}
+
+impl From<{{ data_type(t) }}> for {{ type_name(name) }} {
+    fn from(val: {{ data_type(t) }}) -> Self {
+        Self(val)
+    }
+}
+
+impl From<{{ type_name(name) }}> for {{ data_type(t) }} {
+    fn from(val: {{ type_name(name) }}) -> Self {
+        val.0
+    }
+}
+
+impl std::fmt::Debug for {{ type_name(name) }} {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+      {%- if t in ['.Int', '.Short'] %}
+        write!(f, "{{ type_name(name) }}({})", self.0)
+      {%- else %}
+        write!(f, "{{ type_name(name) }}(0x{:x})", self.0)
+      {%- endif %}
+    }
+}
+
+      {%- if t == '.Bits' %}
+
+impl std::ops::BitOr for {{ type_name(name) }} {
+    type Output = Self;
+
+    fn bitor(self, rhs: Self) -> Self::Output {
+        Self(self.0 | rhs.0)
+    }
+}
+
+impl std::ops::BitOrAssign for {{ type_name(name) }} {
+    fn bitor_assign(&mut self, rhs: Self) {
+        self.0 |= rhs.0;
+    }
+}
+
+impl std::ops::BitXor for {{ type_name(name) }} {
+    type Output = Self;
+
+    fn bitxor(self, rhs: Self) -> Self::Output {
+        Self(self.0 ^ rhs.0)
+    }
+}
+
+impl std::ops::BitXorAssign for {{ type_name(name) }} {
+    fn bitxor_assign(&mut self, rhs: Self) {
+        self.0 ^= rhs.0;
+    }
+}
+
+impl std::ops::BitAnd for {{ type_name(name) }} {
+    type Output = Self;
+
+    fn bitand(self, rhs: Self) -> Self::Output {
+        Self(self.0 & rhs.0)
+    }
+}
+
+impl std::ops::BitAndAssign for {{ type_name(name) }} {
+    fn bitand_assign(&mut self, rhs: Self) {
+        self.0 &= rhs.0;
+    }
+}
+
+impl std::ops::Not for {{ type_name(name) }} {
+    type Output = Self;
+
+    fn not(self) -> Self::Output {
+        Self(!self.0)
+    }
+}
+      {%- endif %}
+
+    {%- else %}
+pub type {{ type_name(name) }} = {{ data_type(t) }};
+    {%- endif %}
+
+  {%- elif t.__class__.__name__ == 'Struct' %}
+
+{{ struct_decl(name, t) }}
+
+  {%- elif t.__class__.__name__ == 'Union' %}
+
+{{ union_decl(name, t) }}
+
+  {%- elif t.__class__.__name__ == 'Array' %}
+
+pub type {{ type_name(name) }} = [{{ data_type(t.dtype) }}; {{ t.nelements }}];
+
+  {%- else %}
+    {% include "Unknown type" %}
+  {%- endif %}
+{%- endfor %}
+
+{# Create declarations for anonymous structs and unions #}
+{%- for list in defmod.modswis.values() %}
+  {%- for swi in list %}
+    {%- if not swi.hidden and '_' in swi.name %}
+      {%- for reg in swi.entry -%}
+        {%- if reg.dtype.__class__.__name__ in ['Struct', 'Union'] %}
+          {%- set x = anonymous_types.__setitem__(swi.name + '_' + reg.name, reg.dtype) -%}
+        {%- endif %}
+      {%- endfor %}
+    {%- endif %}
+  {%- endfor %}
+{%- endfor %}
+
+{# First pass finds all the nested anonymous structs and unions #}
+{%- for name, t in anonymous_types.copy().items() %}
+  {%- if t.__class__.__name__ == 'Struct' %}
+    {%- set x = struct_decl(name, t) %}
+  {%- elif t.__class__.__name__ == 'Union' %}
+    {%- set x = union_decl(name, t) %}
+  {%- else %}
+    {%- include "Unknown anonymous type" %}
+  {%- endif %}
+{%- endfor %}
+
+{# Second pass renders the anonymous structs and unions #}
+{%- for name, t in anonymous_types.copy().items() %}
+  {%- if t.__class__.__name__ == 'Struct' %}
+{{ struct_decl(name, t) }}
+  {%- elif t.__class__.__name__ == 'Union' %}
+{{ union_decl(name, t) }}
+  {%- else %}
+    {%- include "Unknown anonymous type" %}
+  {%- endif %}
+{%- endfor %}
+
+// ############## {{ defmod.title }} constants #################################
+
+{% for constant in defmod.constants.values() %}
+  {%- if constant.value.__class__.__name__ == 'list' -%}
+    {%- set value, comment = constant.value -%}
+    {%- set comment = " // " + comment -%}
+  {%- else -%}
+    {%- set value = constant.value -%}
+    {%- set comment = "" -%}
+  {%- endif -%}
+  {%- if constant.dtype[0] == '.' %}
+    {%- if constant.dtype == '.Int' and regex_match('[0-9]+', value) %}
+pub const {{ constant_name(constant.name) }}: {{ data_type(constant.dtype) }} = {{ value }}_u32 as {{ data_type(constant.dtype) }};{{ comment }}
+    {%- elif constant.dtype == '.Int' and regex_match('-[0-9]+', value) %}
+pub const {{ constant_name(constant.name) }}: {{ data_type(constant.dtype) }} = {{ value }}_i32 as {{ data_type(constant.dtype) }};{{ comment }}
+    {%- else %}
+pub const {{ constant_name(constant.name) }}: {{ data_type(constant.dtype) }} = {{ value }} as {{ data_type(constant.dtype) }};{{ comment }}
+    {%- endif %}
+  {%- elif constant.dtype[0] == '&' %}
+pub const {{ constant_name(constant.name) }}: {{ data_type(constant.dtype, '', True) }} = {{ value }}_i32 as {{ data_type(constant.dtype, '', True) }};{{ comment }}
+  {%- elif base_type(constant.dtype) == '.Bits' and regex_match('-[0-9]+', value) %}
+pub const {{ constant_name(constant.name) }}: {{ data_type(constant.dtype) }} = {{ data_type(constant.dtype) }}::from_const({{ value }}_i32 as u32);{{ comment }}
+  {%- elif base_type(constant.dtype) == '.Byte' and regex_match('-[0-9]+', value) %}
+pub const {{ constant_name(constant.name) }}: {{ data_type(constant.dtype) }} = {{ data_type(constant.dtype) }}::from_const({{ value }}_i8 as u8);{{ comment }}
+  {%- else %}
+pub const {{ constant_name(constant.name) }}: {{ data_type(constant.dtype) }} = {{ data_type(constant.dtype) }}::from_const({{ value }});{{ comment }}
+  {%- endif %}
+{% endfor %}
+
+// ############## {{ defmod.title }} SWIs #################################
+
+{%- for list in defmod.modswis.values() %}
+  {%- for swi in list %}
+    {%- if not swi.hidden and '_' in swi.name %}
+
+/// SWI:           {{ swi.name }}
+///
+      {%- if swi.description %}
+/// Description:   {{ swi.description }}
+      {%- endif %}
+      {%- if swi.entry|selectattr('assign', '!=', '#')|list|length > 0 %}
+///
+/// Input:
+      {%- endif %}
+      {%- for reg in swi.entry|selectattr('assign', '!=', '?')|selectattr('assign', '!=', '#') %}
+///  - {{ reg.name }} - value of {{ reg.reg }} on entry
+      {%- endfor %}
+      {%- if (swi.exit|selectattr('assign', '!=', '?')|list|length) > 0 %}
+///
+/// Output:
+      {%- endif %}
+      {%- for reg in swi.exit|selectattr('assign', '!=', '?') %}
+///  - {{ "psr" if reg.reg == 'FLAGS' else reg.name }} - value of {{ reg.reg }} on exit
+      {%- endfor %}
+///
+/// Other notes:   Calls SWI {{ '0x%x'|format(swi.number) }}.
+///
+#[allow(non_snake_case)]{# A few argument names don't conform and differ only in case so cannot be converted #}
+pub fn {{ swi_name(swi.name) }}
+      {%- for reg in swi.entry -%}
+        {%- if reg.dtype[0] == '&' and contains_var_array(reg.dtype[1:]) -%}
+<T: Into<{{ data_type(reg.dtype, '', True, False) }}> + std::fmt::Debug>
+          {%- break -%}
+        {%- elif contains_var_array(reg.dtype) -%}
+<T: Into<*const {{ data_type(reg.dtype, '', False, False) }}> + std::fmt::Debug>
+          {%- break -%}
+        {%- endif -%}
+      {%- endfor %}(
+      {%- for reg in swi.entry|selectattr('assign', '!=', '#') -%}
+        {%- if (reg.dtype[0] == '&' and contains_var_array(reg.dtype[1:])) or contains_var_array(reg.dtype) -%}
+{{ field_name(reg.name) }}: T{{ ", " if not loop.last else "" }}
+        {%- else -%}
+{{ field_name(reg.name) }}: {{ "*const " if reg.assign == '->' else "" }}{{ data_type(reg.dtype, swi.name + '_' + reg.name, True) }}{{ ", " if not loop.last else "" }}
+        {%- endif -%}
+      {%- endfor -%}
+) -> Result<{% if swi.exit|selectattr('assign', 'in', "['!', '=', '->']")|list|length != 1 %}({% endif %}
+      {%- for reg in swi.exit|selectattr('assign', 'in', "['!', '=', '->']") -%}
+        {%- if reg.assign == '->' and reg.dtype[0] == '.' -%}
+          {%- if reg.dtype == '.Asm' -%}
+{{ data_type(reg.dtype) }}{{ ", " if not loop.last else "" }}
+          {%- else -%}
+*const {{ data_type(reg.dtype, '', False) }}{{ ", " if not loop.last else "" }}
+          {%- endif -%}
+        {%- else -%}
+{{ "*const " if reg.assign == '->' else "" }}{{ data_type(reg.dtype, '', False, True) }}{{ ", " if not loop.last else "" }}
+        {%- endif -%}
+      {%- endfor -%}
+{% if swi.exit|selectattr('assign', 'in', "['!', '=', '->']")|list|length != 1 %}){% endif %}, *const crate::os::OSError> {
+      {%- for reg in swi.entry %}
+        {%- set ns = namespace(dtype='i32',src_dtype='') %}
+        {%- for r in swi.entry|selectattr('reg', '==', reg.reg)|selectattr('assign', '==', '|') %}
+          {%- set ns.dtype = data_type(r.dtype, '', True, False) %}
+          {%- set ns.src_dtype = r.dtype %}
+        {%- endfor %}
+        {%- if reg.assign == '#' %}
+          {%- if reg.name[0] == "'" %}
+    let {{ reg.reg|lower }}_value: u32 = {{ '0x%x'|format(magic_word(reg.name)) }};
+          {%- else %}
+            {%- if ns.src_dtype[0] == '&' and contains_var_array(ns.src_dtype[1:]) %}
+    let {{ reg.reg|lower }}_value: {{ ns.dtype }} = {{ data_type(ns.src_dtype[1:], '', False, False) }}::const_as_ptr({{ constant_name(reg.name) }});
+            {%- elif ns.dtype[0] == '*' %}
+    let {{ reg.reg|lower }}_value: {{ ns.dtype }} = {{ constant_name(reg.name) }} as {{ ns.dtype }};
+            {%- elif ns.dtype in ['i32', 'u32'] and regex_match('[0-9]+', reg.name) %}
+    let {{ reg.reg|lower }}_value: {{ ns.dtype }} = {{ reg.name }}_u32 as {{ ns.dtype }};
+            {%- elif ns.dtype in ['i32', 'u32'] and regex_match('-[0-9]+', reg.name) %}
+    let {{ reg.reg|lower }}_value: {{ ns.dtype }} = {{ reg.name }}_i32 as {{ ns.dtype }};
+            {%- else %}
+    let {{ reg.reg|lower }}_value: {{ ns.dtype }} = {{ constant_name(reg.name) }}.into();
+            {%- endif %}
+          {%- endif %}
+        {%- elif reg.assign == '|' %}
+          {%- if ns.dtype[0] == '*' %}
+            {%- if reg.dtype[0] == '&' and contains_var_array(reg.dtype[1:]) %}
+    let {{ reg.reg|lower }}_arg: {{ data_type(reg.dtype, '', False, False) }} = {{ reg.name }}.into();
+    let {{ reg.reg|lower }}_value = {{ reg.reg|lower }}_value as *const u8 as i32 | {{ reg.reg|lower }}_arg as *const u8 as i32;
+            {%- elif contains_var_array(reg.dtype) -%}
+    let {{ reg.reg|lower }}_arg: {{ data_type(reg.dtype, '', False, False) }} = {{ reg.name }}.into();
+    let {{ reg.reg|lower }}_value = {{ reg.reg|lower }}_value as *const u8 as i32 | {{ reg.reg|lower }}_arg as *const u8 as i32;
+            {%- else %}
+    let {{ reg.reg|lower }}_value = {{ reg.reg|lower }}_value as i32 | {{ reg.name }} as i32;
+            {%- endif %}
+          {%- else %}
+    let {{ reg.reg|lower }}_value = {{ reg.reg|lower }}_value | {{ field_name(reg.name) }};
+          {%- endif %}
+        {%- elif reg.assign == '+' %}
+    let mut os_word_buf: [u8; 5] = [0; 5];
+    os_word_buf[0] = {{ reg.reg|lower }}_value as u8;
+    os_word_buf[1..].copy_from_slice(&({{ field_name(reg.name) }} as i32).to_le_bytes());
+    let {{ reg.reg|lower }}_value = &os_word_buf;
+        {%- endif %}
+      {%- endfor %}
+
+      {%- for reg in swi.exit|selectattr('assign', 'in', "['=', '->', '!']") %}
+    let exit_{{ "psr" if reg.reg == 'FLAGS' else reg.name }}{{ ": u32" if data_type(reg.dtype) == 'bool' else "" }};
+      {%- endfor %}
+    let swi_error: *const crate::os::OSError;
+
+    #[cfg(all(target_arch = "arm", target_os = "none"))] {
+      {%- for reg in swi.entry %}
+        {%- if reg.assign == '|' %}
+          {%- if base_type(reg.dtype) == '.Bits' %}
+        let {{ reg.reg|lower }}_value: u32 = {{ reg.reg|lower }}_value.into();
+          {%- else %}
+        let {{ reg.reg|lower }}_value: i32 = {{ reg.reg|lower }}_value.into();
+          {%- endif %}
+        {%- elif reg.assign in ['='] %}
+          {%- if reg.dtype.__class__.__name__ == 'str' %}
+            {%- if reg.dtype[0] == '&' %}
+              {%- if contains_var_array(reg.dtype[1:]) %}
+        let {{ field_name(reg.name) }} = {{ field_name(reg.name) }}.into() as *const std::os::raw::c_void;
+              {%- endif %}
+            {%- elif base_type(reg.dtype)[0] == '&' %}
+        let {{ field_name(reg.name) }}: *const std::os::raw::c_void = {{ field_name(reg.name) }}.into();
+            {%- elif base_type(reg.dtype) in ['.Bits', '.Bool'] %}
+        let {{ field_name(reg.name) }}: u32 = {{ field_name(reg.name) }}.into();
+            {%- elif base_type(reg.dtype) in ['.Byte', '.Data'] %}
+        let {{ field_name(reg.name) }}: u8 = {{ field_name(reg.name) }}.into();
+            {%- elif base_type(reg.dtype) in ['.Int', '.Any'] %}
+        let {{ field_name(reg.name) }}: i32 = {{ field_name(reg.name) }}.into();
+            {%- elif base_type(reg.dtype) in ['.Short'] -%}
+        let {{ field_name(reg.name) }}: i16 = {{ field_name(reg.name) }}.into();
+            {%- endif %}
+          {%- endif %}
+        {%- elif reg.assign in ['->'] %}
+          {%- if contains_var_array(reg.dtype) %}
+        let {{ field_name(reg.name) }} = {{ field_name(reg.name) }}.into() as *const std::os::raw::c_void;
+          {%- endif %}
+        {%- endif %}
+      {%- endfor %}
+      {%- for reg in swi.exit %}
+        {%- if reg.assign == '=' %}
+          {%- if reg.dtype.__class__.__name__ == 'str' and reg.dtype[0] == '&' %}
+          {%- elif base_type(reg.dtype)[0] == '&' %}
+          {%- elif base_type(reg.dtype) in ['.Asm'] %}
+          {%- elif base_type(reg.dtype) in ['.Bits', '.Bool'] %}
+        let exit_{{ reg.reg|lower }}_value: u32;
+          {%- elif base_type(reg.dtype) in ['.Byte', '.Data', '.String', '.Char'] %}
+        let exit_{{ reg.reg|lower }}_value: u8;
+          {%- elif base_type(reg.dtype) in ['.Short'] -%}
+        let exit_{{ reg.reg|lower }}_value: i16;
+          {%- else %}
+        let exit_{{ reg.reg|lower }}_value: i32;
+          {%- endif %}
+        {%- endif %}
+      {%- endfor %}
+        unsafe {
+            use std::arch::asm;
+            asm!("SWI {{ '0x%x'|format(swi.number + 0x20000) }}",
+      {%- for reg in swi.exit|selectattr('reg', '==', 'FLAGS') %}
+                 "MRS r12, CPSR",
+      {%- endfor %}
+                 "MOVVS r10, r0",
+                 "MOVVC r10, #0",
+      {%- for reg in swi.entry %}
+        {%- if reg.assign == '#' %}
+                 in("{{ reg.reg|lower }}") {{ reg.reg|lower }}_value,
+        {%- elif reg.assign in ['=', '->'] %}
+                 in("{{ reg.reg|lower }}") {{ field_name(reg.name) }},
+        {%- endif %}
+      {%- endfor %}
+      {%- if swi.exit|length == 0 or swi.exit[0].reg|lower != 'r0' %}{# r0 can always be clobbered on an error #}
+                 lateout("r0") _,
+      {%- endif %}
+      {%- for reg in swi.exit %}
+        {%- if reg.assign == '?' %}
+                 lateout("{{ reg.reg|lower }}") _,
+        {%- elif reg.assign == '->' %}
+                 lateout("{{ reg.reg|lower }}") exit_{{ reg.name }},
+        {%- elif reg.assign == '=' %}
+          {%- if reg.dtype.__class__.__name__ == 'str' and reg.dtype[0] == '&' %}
+                 lateout("{{ reg.reg|lower }}") exit_{{ reg.name }},
+          {%- elif base_type(reg.dtype) in ['.Asm'] %}
+                 lateout("{{ reg.reg|lower }}") exit_{{ reg.name }},
+          {%- else %}
+                 lateout("{{ reg.reg|lower }}") exit_{{ reg.reg|lower }}_value,
+          {%- endif %}
+        {%- elif reg.assign == '!' %}
+                 out("r12") exit_psr,
+        {%- endif %}
+      {%- endfor %}
+                 out("r10") swi_error);
+        }
+      {%- for reg in swi.exit %}
+        {%- if reg.assign == '=' %}
+          {%- if reg.dtype.__class__.__name__ == 'str' and reg.dtype[0] == '&' %}
+          {%- elif base_type(reg.dtype) in ['.Asm'] %}
+          {%- else %}
+        exit_{{ reg.name }} = exit_{{ reg.reg|lower }}_value.into();
+          {%- endif %}
+        {%- endif %}
+      {%- endfor %}
+    }
+    #[cfg(all(target_arch = "aarch64", target_os = "none"))] {
+      {%- for reg in swi.entry %}
+        {%- if reg.assign == '|' %}
+          {%- if base_type(reg.dtype) == '.Bits' %}
+        let {{ reg.reg|lower }}_value: u32 = {{ reg.reg|lower }}_value.into();
+          {%- else %}
+        let {{ reg.reg|lower }}_value: i32 = {{ reg.reg|lower }}_value.into();
+          {%- endif %}
+        {%- elif reg.assign in ['='] %}
+          {%- if reg.dtype.__class__.__name__ == 'str' %}
+            {%- if reg.dtype[0] == '&' %}
+              {%- if contains_var_array(reg.dtype[1:]) %}
+        let {{ field_name(reg.name) }} = {{ field_name(reg.name) }}.into() as *const std::os::raw::c_void;
+              {%- endif %}
+            {%- elif base_type(reg.dtype)[0] == '&' %}
+        let {{ field_name(reg.name) }}: *const std::os::raw::c_void = {{ field_name(reg.name) }}.into();
+            {%- elif base_type(reg.dtype) in ['.Bits', '.Bool'] %}
+        let {{ field_name(reg.name) }}: u32 = {{ field_name(reg.name) }}.into();
+            {%- elif base_type(reg.dtype) in ['.Byte', '.Data'] %}
+        let {{ field_name(reg.name) }}: u8 = {{ field_name(reg.name) }}.into();
+            {%- elif base_type(reg.dtype) in ['.Int', '.Any'] %}
+        let {{ field_name(reg.name) }}: i32 = {{ field_name(reg.name) }}.into();
+            {%- elif base_type(reg.dtype) in ['.Short'] -%}
+        let {{ field_name(reg.name) }}: i16 = {{ field_name(reg.name) }}.into();
+            {%- endif %}
+          {%- endif %}
+        {%- elif reg.assign in ['->'] %}
+          {%- if contains_var_array(reg.dtype) %}
+        let {{ field_name(reg.name) }} = {{ field_name(reg.name) }}.into() as *const std::os::raw::c_void;
+          {%- endif %}
+        {%- endif %}
+      {%- endfor %}
+      {%- for reg in swi.exit %}
+        {%- if reg.assign == '=' %}
+          {%- if reg.dtype.__class__.__name__ == 'str' and reg.dtype[0] == '&' %}
+          {%- elif base_type(reg.dtype)[0] == '&' %}
+          {%- elif base_type(reg.dtype) in ['.Asm'] %}
+          {%- elif base_type(reg.dtype) in ['.Bits', '.Bool'] %}
+        let exit_{{ reg.reg|lower }}_value: u32;
+          {%- elif base_type(reg.dtype) in ['.Byte', '.Data', '.String', '.Char'] %}
+        let exit_{{ reg.reg|lower }}_value: u8;
+          {%- elif base_type(reg.dtype) in ['.Short'] -%}
+        let exit_{{ reg.reg|lower }}_value: i16;
+          {%- else %}
+        let exit_{{ reg.reg|lower }}_value: i32;
+          {%- endif %}
+        {%- endif %}
+      {%- endfor %}
+        unsafe {
+            use std::arch::asm;
+            asm!("MOV  x10, #{{ '0x%x'|format(swi.number % 65536) }}",
+                 "MOVK x10, #{{ '0x%x'|format((swi.number + 0x20000) // 65536) }}, LSL 16",
+                 "SVC #0",
+      {%- for reg in swi.exit|selectattr('reg', '==', 'FLAGS') %}
+                 "MRS x12, NZCV",
+      {%- endfor %}
+                 "CSEL x10, xzr, x0, VC",
+      {%- for reg in swi.entry %}
+        {%- if reg.assign == '#' %}
+                 in("{{ reg.reg|lower|replace('r', 'x') }}") {{ reg.reg|lower }}_value,
+        {%- elif reg.assign in ['=', '->'] %}
+                 in("{{ reg.reg|lower|replace('r', 'x') }}") {{ field_name(reg.name) }},
+        {%- endif %}
+      {%- endfor %}
+      {%- if swi.exit|length == 0 or swi.exit[0].reg|lower != 'r0' %}{# r0 can always be clobbered on an error #}
+                 lateout("x0") _,
+      {%- endif %}
+      {%- for reg in swi.exit %}
+        {%- if reg.assign == '?' %}
+                 lateout("{{ reg.reg|lower|replace('r', 'x') }}") _,
+        {%- elif reg.assign == '->' %}
+                 lateout("{{ reg.reg|lower|replace('r', 'x') }}") exit_{{ reg.name }},
+        {%- elif reg.assign == '=' %}
+          {%- if reg.dtype.__class__.__name__ == 'str' and reg.dtype[0] == '&' %}
+                 lateout("{{ reg.reg|lower|replace('r', 'x') }}") exit_{{ reg.name }},
+          {%- elif base_type(reg.dtype) in ['.Asm'] %}
+                 lateout("{{ reg.reg|lower|replace('r', 'x') }}") exit_{{ reg.name }},
+          {%- else %}
+                 lateout("{{ reg.reg|lower|replace('r', 'x') }}") exit_{{ reg.reg|lower }}_value,
+          {%- endif %}
+        {%- elif reg.assign == '!' %}
+                 out("x12") exit_psr,
+        {%- endif %}
+      {%- endfor %}
+                 out("x10") swi_error);
+        }
+      {%- for reg in swi.exit %}
+        {%- if reg.assign == '=' %}
+          {%- if reg.dtype.__class__.__name__ == 'str' and reg.dtype[0] == '&' %}
+          {%- elif base_type(reg.dtype) in ['.Asm'] %}
+          {%- else %}
+        exit_{{ reg.name }} = exit_{{ reg.reg|lower }}_value.into();
+          {%- endif %}
+        {%- endif %}
+      {%- endfor %}
+     }
+    #[cfg(not(any(all(target_arch = "arm", target_os = "none"), all(target_arch = "aarch64", target_os = "none"))))] {
+        // Stub to allow compilation and basic testing
+        println!("{{ swi_name(swi.name) }}(
+      {%- for reg in swi.entry|selectattr('assign', 'in', ['=', '->', '#']) -%}
+{:?}{{ ", " if not loop.last else "" }}
+      {%- endfor -%})"
+      {%- for reg in swi.entry -%}
+        {%- if reg.assign in ['=', '->'] -%}
+, {{ field_name(reg.name) }}
+        {%- elif reg.assign == '#' -%}
+, {{ reg.reg|lower }}_value
+        {%- endif -%}
+      {%- endfor -%});
+
+
+      {%- for reg in swi.exit|selectattr('assign', 'in', "['=', '->', '!']") %}
+        {%- if reg.dtype[0] == '&' or reg.dtype == '.Asm' %}
+        exit_{{ reg.name }} = 0 as {{ data_type(reg.dtype) }};
+        {%- elif reg.assign == '->' and reg.dtype[0] == '.' %}
+        exit_{{ reg.name }} = 0 as *const {{ data_type(reg.dtype, '', False) }};
+        {%- else %}
+        exit_{{ "psr" if reg.reg == 'FLAGS' else reg.name }} = {{ "std::boxed::Box::leak(std::boxed::Box::new(" if reg.assign == '->' else "" }}{% if contains_var_array(reg.dtype) %}{{ data_type(reg.dtype, '', False, False) }}Base::<0>::new(){% else %}Default::default(){% endif %}{{ "))" if reg.assign == '->' else "" }};
+        {%- endif %}
+      {%- endfor %}
+        swi_error = std::ptr::null();
+    }
+
+      {%- for reg in swi.exit|selectattr('assign', 'in', "['=', '->', '!']") %}
+        {%- if data_type(reg.dtype) == 'bool' %}
+    let exit_{{ reg.name }} = exit_{{ reg.name }} != 0;{# If output is bool then convert any non-zero value to true #}
+        {%- endif %}
+      {%- endfor %}
+
+    if swi_error.is_null() {
+        Ok({% if swi.exit|selectattr('assign', 'in', "['!', '=', '->']")|list|length != 1 %}({% endif %}
+      {%- for reg in swi.exit|selectattr('assign', 'in', "['!', '=', '->']") -%}
+        {%- if reg.dtype[0] == '&' or reg.dtype == '.Asm' -%}
+exit_{{ reg.name }}{{ ", " if not loop.last else "" }}
+        {%- elif reg.assign == '->' and reg.dtype[0] == '.' -%}
+exit_{{ reg.name }}{{ ", " if not loop.last else "" }}
+        {%- else -%}
+exit_{{ "psr" if reg.reg == 'FLAGS' else reg.name }}{{ ", " if not loop.last else "" }}
+        {%- endif -%}
+      {%- endfor -%}
+    {% if swi.exit|selectattr('assign', 'in', "['!', '=', '->']")|list|length != 1 %}){% endif %})
+    } else {
+        Err(swi_error)
+    }
+}
+    {%- endif %}
+  {%- endfor %}
+{%- endfor %}

@@ -39,7 +39,7 @@ jobs:
 
       - name: Build the library
         run: |
-          make
+          make all
 
       - name: Build an archive
         run: |
